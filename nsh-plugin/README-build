@@ -1,0 +1,6 @@
+autoreconf -i -f
+mkdir build
+cd build
+../configure --with-plugin-toolkit
+make
+sudo make install

@@ -1,0 +1,5 @@
+apt-get download --allow-unauthenticated  vpp-dev vpp-lib
+dpkg -x vpp-dev_16.09-rc0~66-g3ef822e~b233_amd64.deb tmp/
+dpkg -x vpp-lib_16.09-rc0~66-g3ef822e~b233_amd64.deb tmp/
+env CPPFLAGS='-I/home/vagrant/tmp/usr/include/' LDFLAGS='-L/home/vagrant/tmp/usr/lib' ./configure
+
