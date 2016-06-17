@@ -2,6 +2,6 @@
 autoreconf -i -f
 [ -d build ] ||  mkdir build
 cd build
-../configure --with-plugin-toolkit
+../configure --prefix /usr
 make
 sudo make install
