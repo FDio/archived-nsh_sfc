@@ -612,35 +612,6 @@ nsh_plugin_api_hookup (vlib_main_t *vm)
   return 0;
 }
 
-clib_error_t *nsh_init (vlib_main_t *vm)
-{
-  nsh_main_t *nm = &nsh_main;
-  clib_error_t * error = 0;
-  u8 * name;
-
-  nm->nsh_mapping_by_key
-    = hash_create_mem (0, sizeof(u32), sizeof (uword));
-
-  nm->nsh_mapping_by_mapped_key
-    = hash_create_mem (0, sizeof(u32), sizeof (uword));
-
-  nm->nsh_entry_by_key
-    = hash_create_mem (0, sizeof(u32), sizeof (uword));
-
-  name = format (0, "nsh_%08x%c", api_version, 0);
-
-
-  nm->msg_id_base = vl_msg_api_get_msg_ids
-    ((char *) name, VL_MSG_FIRST_AVAILABLE);
-
-  error = nsh_plugin_api_hookup (vm);
-
-  vec_free(name);
-
-  return error;
-}
-
-VLIB_INIT_FUNCTION(nsh_init);
 
 
 
@@ -881,3 +852,55 @@ VLIB_REGISTER_NODE (nsh_input_node) = {
 #undef _
   },
 };
+
+clib_error_t *nsh_init (vlib_main_t *vm)
+{
+  nsh_main_t *nm = &nsh_main;
+  clib_error_t * error = 0;
+  vlib_node_t * vxlan4_gpe_input_node = 0;
+  vlib_node_t * vxlan6_gpe_input_node = 0;
+  vlib_node_t * gre_input_node = 0;
+  u8 * name;
+
+  /* Init the main structures from VPP */
+  nm->vlib_main = vm;
+  nm->vnet_main = vnet_get_main();
+
+  /* Various state maintenance mappings */
+  nm->nsh_mapping_by_key
+    = hash_create_mem (0, sizeof(u32), sizeof (uword));
+
+  nm->nsh_mapping_by_mapped_key
+    = hash_create_mem (0, sizeof(u32), sizeof (uword));
+
+  nm->nsh_entry_by_key
+    = hash_create_mem (0, sizeof(u32), sizeof (uword));
+
+  name = format (0, "nsh_%08x%c", api_version, 0);
+
+  /* Set up the API */
+  nm->msg_id_base = vl_msg_api_get_msg_ids
+    ((char *) name, VL_MSG_FIRST_AVAILABLE);
+
+  error = nsh_plugin_api_hookup (vm);
+
+  /* Add dispositions to nodes that feed nsh-input */
+  vxlan4_gpe_input_node = vlib_get_node_by_name (vm, (u8 *)"vxlan4-gpe-input");
+  ASSERT(vxlan4_gpe_input_node);
+  //alagalah - validate we don't really need to use the node value
+  vlib_node_add_next (vm, vxlan4_gpe_input_node->index, nsh_input_node.index);
+
+  vxlan6_gpe_input_node = vlib_get_node_by_name (vm, (u8 *)"vxlan6-gpe-input");
+  ASSERT(vxlan6_gpe_input_node);
+  vlib_node_add_next (vm, vxlan6_gpe_input_node->index, nsh_input_node.index);
+
+  gre_input_node = vlib_get_node_by_name (vm, (u8 *)"gre-input");
+  ASSERT(gre_input_node);
+  vlib_node_add_next (vm, gre_input_node->index, nsh_input_node.index);
+
+  vec_free(name);
+
+  return error;
+}
+
+VLIB_INIT_FUNCTION(nsh_init);
