@@ -15,15 +15,10 @@ echo DISTRIB_RELEASE: $DISTRIB_RELEASE
 echo DISTRIB_CODENAME: $DISTRIB_CODENAME
 echo DISTRIB_DESCRIPTION: $DISTRIB_DESCRIPTION
 
-NSH_PLUGIN_DIR=$(dirname $0)/../../nsh-plugin
+NSH_PLUGIN_DIR=$(dirname $0)/../../nsh-plugin/
+NSH_PLUGIN_DIR=$(readlink -f $NSH_PLUGIN_DIR)
 echo "NSH_PLUGIN_DIR: ${NSH_PLUGIN_DIR}"
-cd ${NSH_PLUGIN_DIR}
-autoreconf -i -f
-mkdir _install
-mkdir _build
-cd _build
-../configure --prefix=$(pwd)/../../_install
-make
-make install
+export NSH_INSTALL_PREFIX=${NSH_PLUGIN_DIR}/_install
+${NSH_PLUGIN_DIR}/build.sh
 
 
