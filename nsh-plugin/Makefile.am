@@ -13,27 +13,32 @@
 # limitations under the License.
 
 AUTOMAKE_OPTIONS = foreign subdir-objects
-
+SUBDIRS=java
 AM_CFLAGS = -Wall -I@TOOLKIT_INCLUDE@
+
+nsh_plugin_la_CPPFLAGS = -DDEBUG -g
+nsh_test_plugin_la_CPPFLAGS = -DDEBUG -g
+
+CPPFLAGS += -DDEBUG -g
 
 lib_LTLIBRARIES = nsh_plugin.la nsh_test_plugin.la
 nsh_plugin_la_SOURCES = nsh/nsh.c  \
 	nsh/nsh_plugin.api.h 
 nsh_plugin_la_LDFLAGS = -module
 
-BUILT_SOURCES = nsh/nsh.api.h
+BUILT_SOURCES = vpp-api/nsh.api.h
 
 SUFFIXES = .api.h .api
 
-%.api.h: %.api
+vpp-api/%.api.h: nsh/%.api
 	mkdir -p `dirname $@` ; \
 	$(CC) $(CPPFLAGS) -E -P -C -x c $^ \
 	| vppapigen --input - --output $@ --show-name $@
 
 nobase_include_HEADERS =			\
-  nsh/nsh_all_api_h.h			\
-  nsh/nsh_msg_enum.h			\
-  nsh/nsh.api.h
+  vpp-api/nsh_all_api_h.h			\
+  vpp-api/nsh_msg_enum.h			\
+  vpp-api/nsh.api.h
 
 nsh_test_plugin_la_SOURCES = \
   nsh/nsh_test.c nsh/nsh_plugin.api.h

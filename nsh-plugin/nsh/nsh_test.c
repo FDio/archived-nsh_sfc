@@ -24,28 +24,28 @@
 uword unformat_sw_if_index (unformat_input_t * input, va_list * args);
 
 /* Declare message IDs */
-#include <nsh/nsh_msg_enum.h>
+#include <vpp-api/nsh_msg_enum.h>
 
 /* define message structures */
 #define vl_typedefs
-#include <nsh/nsh_all_api_h.h>
+#include <vpp-api/nsh_all_api_h.h>
 #undef vl_typedefs
 
 /* declare message handlers for each api */
 
 #define vl_endianfun             /* define message structures */
-#include <nsh/nsh_all_api_h.h>
+#include <vpp-api/nsh_all_api_h.h>
 #undef vl_endianfun
 
 /* instantiate all the print functions we know about */
 #define vl_print(handle, ...)
 #define vl_printfun
-#include <nsh/nsh_all_api_h.h>
+#include <vpp-api/nsh_all_api_h.h>
 #undef vl_printfun
 
 /* Get the API version number. */
 #define vl_api_version(n,v) static u32 api_version=(v);
-#include <nsh/nsh_all_api_h.h>
+#include <vpp-api/nsh_all_api_h.h>
 #undef vl_api_version
 
 

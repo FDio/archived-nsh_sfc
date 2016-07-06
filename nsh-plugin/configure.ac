@@ -6,7 +6,7 @@ AC_PROG_LIBTOOL
 AM_PROG_AS
 AC_PROG_CC
 AM_PROG_CC_C_O
-
+AC_CONFIG_SUBDIRS([java])
 AC_ARG_WITH(plugin-toolkit,
             AC_HELP_STRING([--with-plugin-toolkit],
             [build using the vpp toolkit]),

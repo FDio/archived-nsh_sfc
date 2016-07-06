@@ -39,16 +39,19 @@ define nsh_add_del_entry {
 define nsh_add_del_entry_reply {
     u32 context;
     i32 retval;
+    u32 entry_index;
 };
 
 
 define nsh_entry_dump {
     u32 client_index;
     u32 context;
+    u32 entry_index;
 };
 
 define nsh_entry_details {
     u32 context;
+    u32 entry_index;
     u32 nsp_nsi;
     u8 md_type;
     u8 ver_o_c;
@@ -94,15 +97,18 @@ define nsh_add_del_map {
 define nsh_add_del_map_reply {
     u32 context;
     i32 retval;
+    u32 map_index;
 };
 
 define nsh_map_dump {
     u32 client_index;
     u32 context;
+    u32 map_index;
 };
 
 define nsh_map_details {
     u32 context;
+    u32 map_index;
     u32 nsp_nsi;
     u32 mapped_nsp_nsi;
     u32 sw_if_index;

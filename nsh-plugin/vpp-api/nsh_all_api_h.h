@@ -16,4 +16,4 @@
  * limitations under the License.
  */
 /* Include the generated file, see BUILT_SOURCES in Makefile.am */
-#include <nsh/nsh.api.h>
+#include <vpp-api/nsh.api.h>
