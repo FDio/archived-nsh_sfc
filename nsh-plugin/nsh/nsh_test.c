@@ -276,11 +276,11 @@ static int api_nsh_add_del_map (vat_main_t * vam)
       else if (unformat (line_input, "mapped-nsi %d", &mapped_nsi))
 	mapped_nsi_set = 1;
       else if (unformat (line_input, "encap-gre-intf %d", &sw_if_index))
-	next_node = NSH_INPUT_NEXT_ENCAP_GRE;
+	next_node = NSH_NODE_NEXT_ENCAP_GRE;
       else if (unformat (line_input, "encap-vxlan-gpe-intf %d", &sw_if_index))
-	next_node = NSH_INPUT_NEXT_ENCAP_VXLANGPE;
+	next_node = NSH_NODE_NEXT_ENCAP_VXLANGPE;
       else if (unformat (line_input, "encap-none"))
-	next_node = NSH_INPUT_NEXT_DROP; // Once moved to NSHSFC see nsh.h:foreach_nsh_input_next to handle this case
+	next_node = NSH_NODE_NEXT_DROP; // Once moved to NSHSFC see nsh.h:foreach_nsh_input_next to handle this case
       else
 	return -99; //TODO clib_error_return (0, "parse error: '%U'",
     }

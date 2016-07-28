@@ -44,6 +44,21 @@ typedef struct {
 } nsh_map_t;
 
 typedef struct {
+
+  u32 transport_type; /* 1:vxlan; */
+
+  u32 transport_index; /* transport's sw_if_index */
+
+} nsh_proxy_session_by_key_t;
+
+typedef struct {
+
+  /* 24bit NSP 8bit NSI */
+  u32 nsp_nsi;
+
+} nsh_proxy_session_t;
+
+typedef struct {
   nsh_map_t map;
   u8 is_add;
 } nsh_add_del_map_args_t;
@@ -70,12 +85,21 @@ typedef struct {
   uword * nsh_mapping_by_key;
   uword * nsh_mapping_by_mapped_key; // for use in NSHSFC
 
+  /* vector of nsh_proxy */
+  nsh_proxy_session_t *nsh_proxy_sessions;
+
+  /* hash lookup nsh_proxy by key */
+  uword * nsh_proxy_session_by_key;
+
   /* convenience */
   vlib_main_t * vlib_main;
   vnet_main_t * vnet_main;
 } nsh_main_t;
 
 nsh_main_t nsh_main;
+
+vlib_node_t * vxlan4_input_node = 0;
+vlib_node_t * vxlan6_input_node = 0;
 
 u8 * format_nsh_input_map_trace (u8 * s, va_list * args);
 u8 * format_nsh_header_with_length (u8 * s, va_list * args);
@@ -100,24 +124,27 @@ _(c3)                                           \
 _(c4)
 
 /* Statistics (not really errors) */
-#define foreach_nsh_input_error    \
+#define foreach_nsh_node_error    \
 _(MAPPED, "NSH header found and mapped") \
 _(NO_MAPPING, "no mapping for nsh key") \
 _(NO_ENTRY, "no entry for nsh key") \
+_(NO_PROXY, "no proxy for transport key") \
 _(INVALID_NEXT_PROTOCOL, "invalid next protocol") \
 
 typedef enum {
-#define _(sym,str) NSH_INPUT_ERROR_##sym,
-    foreach_nsh_input_error
+#define _(sym,str) NSH_NODE_ERROR_##sym,
+  foreach_nsh_node_error
 #undef _
-  NSH_INPUT_N_ERROR,
+  NSH_NODE_N_ERROR,
 
 } nsh_input_error_t;
 
-#define foreach_nsh_input_next        \
+#define foreach_nsh_node_next        \
   _(DROP, "error-drop")			\
   _(ENCAP_GRE, "gre-input" )		\
   _(ENCAP_VXLANGPE, "vxlan-gpe-encap" ) \
+  _(ENCAP_VXLAN4, "vxlan4-encap" )  \
+  _(ENCAP_VXLAN6, "vxlan6-encap" )  \
 /* /\* TODO once moved to Project:NSH_SFC *\/ */
   /* _(ENCAP_ETHERNET, "*** TX TO ETHERNET ***")   \ */
 /*   _(DECAP_ETHERNET_LOOKUP, "ethernet-input" )	\ */
@@ -125,16 +152,21 @@ typedef enum {
 /*   _(DECAP_IP6_INPUT,  "ip6-input" ) \  */
 
 typedef enum {
-#define _(s,n) NSH_INPUT_NEXT_##s,
-  foreach_nsh_input_next
+#define _(s,n) NSH_NODE_NEXT_##s,
+  foreach_nsh_node_next
 #undef _
-  NSH_INPUT_N_NEXT,
-} nsh_input_next_t;
+  NSH_NODE_N_NEXT,
+} nsh_node_next_t;
 
 typedef enum {
   NSH_ACTION_SWAP,
   NSH_ACTION_PUSH,
   NSH_ACTION_POP
+};
+
+typedef enum {
+  NSH_INPUT_TYPE,
+  NSH_PROXY_TYPE
 };
 
 #endif /* included_nsh_h */

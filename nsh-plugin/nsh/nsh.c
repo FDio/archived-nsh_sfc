@@ -174,14 +174,24 @@ u8 * format_nsh_map (u8 * s, va_list * args)
 
   switch (map->next_node)
     {
-    case NSH_INPUT_NEXT_ENCAP_GRE:
+    case NSH_NODE_NEXT_ENCAP_GRE:
       {
 	s = format (s, "encapped by GRE intf: %d", map->sw_if_index);
 	break;
       }
-    case NSH_INPUT_NEXT_ENCAP_VXLANGPE:
+    case NSH_NODE_NEXT_ENCAP_VXLANGPE:
       {
 	s = format (s, "encapped by VXLAN GPE intf: %d", map->sw_if_index);
+	break;
+      }
+    case NSH_NODE_NEXT_ENCAP_VXLAN4:
+      {
+	s = format (s, "encapped by VXLAN4 intf: %d", map->sw_if_index);
+	break;
+      }
+    case NSH_NODE_NEXT_ENCAP_VXLAN6:
+      {
+	s = format (s, "encapped by VXLAN6 intf: %d", map->sw_if_index);
 	break;
       }
     default:
@@ -225,7 +235,7 @@ u8 * format_nsh_header_with_length (u8 * s, va_list * args)
   return s;
 }
 
-u8 * format_nsh_input_map_trace (u8 * s, va_list * args)
+u8 * format_nsh_node_map_trace (u8 * s, va_list * args)
 {
   CLIB_UNUSED (vlib_main_t * vm) = va_arg (*args, vlib_main_t *);
   CLIB_UNUSED (vlib_node_t * node) = va_arg (*args, vlib_node_t *);
@@ -301,6 +311,67 @@ int nsh_add_del_map (nsh_add_del_map_args_t *a, u32 * map_indexp)
 }
 
 /**
+ * Action function to add or del an nsh-proxy-session.
+ * Shared by both CLI and binary API
+ **/
+
+int nsh_add_del_proxy_session (nsh_add_del_map_args_t *a)
+{
+  nsh_main_t * nm = &nsh_main;
+  nsh_proxy_session_t *proxy = 0;
+  nsh_proxy_session_by_key_t key, *key_copy;
+  uword * entry;
+  hash_pair_t *hp;
+  u32 nsp = 0, nsi = 0;
+
+  memset (&key, 0, sizeof (key));
+  key.transport_type = a->map.next_node;
+  key.transport_index = a->map.sw_if_index;
+
+  entry = hash_get_mem (nm->nsh_proxy_session_by_key, &key);
+
+  if (a->is_add)
+    {
+      /* adding an entry, must not already exist */
+      if (entry)
+        return -1; //TODO API_ERROR_INVALID_VALUE;
+
+      pool_get_aligned (nm->nsh_proxy_sessions, proxy, CLIB_CACHE_LINE_BYTES);
+      memset (proxy, 0, sizeof (*proxy));
+
+      /* Nsi needs to minus 1 within NSH-Proxy */
+      nsp = (a->map.nsp_nsi>>NSH_NSP_SHIFT) & NSH_NSP_MASK;
+      nsi = a->map.nsp_nsi & NSH_NSI_MASK;
+      if (nsi == 0 )
+	return -1;
+
+      nsi = nsi -1;
+      proxy->nsp_nsi = (nsp<< NSH_NSP_SHIFT) | nsi;
+
+      key_copy = clib_mem_alloc (sizeof (*key_copy));
+      clib_memcpy (key_copy, &key, sizeof (*key_copy));
+
+      hash_set_mem (nm->nsh_proxy_session_by_key, key_copy,
+		    proxy - nm->nsh_proxy_sessions);
+    }
+  else
+    {
+      if (!entry)
+	return -2 ; //TODO API_ERROR_NO_SUCH_ENTRY;
+
+      proxy = pool_elt_at_index (nm->nsh_proxy_sessions, entry[0]);
+      hp = hash_get_pair (nm->nsh_proxy_session_by_key, &key);
+      key_copy = (void *)(hp->key);
+      hash_unset_mem (nm->nsh_proxy_session_by_key, &key);
+      clib_mem_free (key_copy);
+
+      pool_put (nm->nsh_proxy_sessions, proxy);
+    }
+
+  return 0;
+}
+
+/**
  * CLI command for NSH map
  */
 
@@ -358,11 +429,15 @@ nsh_add_del_map_command_fn (vlib_main_t * vm,
                        &nsh_action))
       nsh_action_set = 1;
     else if (unformat (line_input, "encap-gre-intf %d", &sw_if_index))
-      next_node = NSH_INPUT_NEXT_ENCAP_GRE;
+      next_node = NSH_NODE_NEXT_ENCAP_GRE;
     else if (unformat (line_input, "encap-vxlan-gpe-intf %d", &sw_if_index))
-      next_node = NSH_INPUT_NEXT_ENCAP_VXLANGPE;
+      next_node = NSH_NODE_NEXT_ENCAP_VXLANGPE;
+    else if (unformat (line_input, "encap-vxlan4-intf %d", &sw_if_index))
+      next_node = NSH_NODE_NEXT_ENCAP_VXLAN4;
+    else if (unformat (line_input, "encap-vxlan6-intf %d", &sw_if_index))
+      next_node = NSH_NODE_NEXT_ENCAP_VXLAN6;
     else if (unformat (line_input, "encap-none"))
-      next_node = NSH_INPUT_NEXT_DROP; // Once moved to NSHSFC see nsh.h:foreach_nsh_input_next to handle this case
+      next_node = NSH_NODE_NEXT_DROP; // Once moved to NSHSFC see nsh.h:foreach_nsh_input_next to handle this case
     else
       return clib_error_return (0, "parse error: '%U'",
                                 format_unformat_error, line_input);
@@ -392,8 +467,7 @@ nsh_add_del_map_command_fn (vlib_main_t * vm,
   a->map.sw_if_index = sw_if_index;
   a->map.next_node = next_node;
 
-
-  rv = nsh_add_del_map (a, &map_index);
+  rv = nsh_add_del_map(a, &map_index);
 
   switch(rv)
     {
@@ -409,6 +483,28 @@ nsh_add_del_map_command_fn (vlib_main_t * vm,
       return clib_error_return
         (0, "nsh_add_del_map returned %d", rv);
     }
+
+  if((a->map.next_node == NSH_NODE_NEXT_ENCAP_VXLAN4)
+      | (a->map.next_node == NSH_NODE_NEXT_ENCAP_VXLAN6))
+    {
+      rv = nsh_add_del_proxy_session(a);
+
+      switch(rv)
+        {
+        case 0:
+          break;
+        case -1: //TODO API_ERROR_INVALID_VALUE:
+          return clib_error_return (0, "nsh-proxy-session already exists. Remove it first.");
+
+        case -2: // TODO API_ERROR_NO_SUCH_ENTRY:
+          return clib_error_return (0, "nsh-proxy-session does not exist.");
+
+        default:
+          return clib_error_return
+            (0, "nsh_add_del_proxy_session() returned %d", rv);
+        }
+    }
+
   return 0;
 }
 
@@ -835,7 +931,8 @@ nsh_plugin_api_hookup (vlib_main_t *vm)
 static uword
 nsh_input_map (vlib_main_t * vm,
                vlib_node_runtime_t * node,
-               vlib_frame_t * from_frame)
+               vlib_frame_t * from_frame,
+	       u32 node_type)
 {
   u32 n_left_from, next_index, *from, *to_next;
   nsh_main_t * nm = &nsh_main;
@@ -855,7 +952,7 @@ nsh_input_map (vlib_main_t * vm,
 	{
 	  u32 bi0, bi1;
 	  vlib_buffer_t * b0, *b1;
-	  u32 next0 = NSH_INPUT_NEXT_DROP, next1 = NSH_INPUT_NEXT_DROP;
+	  u32 next0 = NSH_NODE_NEXT_DROP, next1 = NSH_NODE_NEXT_DROP;
 	  uword * entry0, *entry1;
 	  nsh_header_t * hdr0 = 0, *hdr1 = 0;
 	  u32 header_len0 = 0, header_len1 = 0;
@@ -864,6 +961,9 @@ nsh_input_map (vlib_main_t * vm,
 	  nsh_map_t * map0 = 0, *map1 = 0;
 	  nsh_header_t *encap_hdr0 = 0, *encap_hdr1 = 0;
 	  u32 encap_hdr_len0 = 0, encap_hdr_len1 = 0;
+	  nsh_proxy_session_by_key_t key0, key1;
+	  uword *p0, *p1;
+	  nsh_proxy_session_t *proxy0, *proxy1;
 
 	  /* Prefetch next iteration. */
 	  {
@@ -893,19 +993,71 @@ nsh_input_map (vlib_main_t * vm,
 
 	  b0 = vlib_get_buffer(vm, bi0);
 	  hdr0 = vlib_buffer_get_current(b0);
-	  header_len0 = hdr0->length * 4;
-	  nsp_nsi0 = clib_net_to_host_u32(hdr0->nsp_nsi);
+          if(node_type == NSH_INPUT_TYPE)
+            {
+              nsp_nsi0 = clib_net_to_host_u32(hdr0->nsp_nsi);
+              header_len0 = hdr0->length * 4;
+            }
+          else
+	    {
+	      memset (&key0, 0, sizeof(key0));
+	      key0.transport_type = NSH_NODE_NEXT_ENCAP_VXLAN4;
+              key0.transport_index = vnet_buffer(b0)->sw_if_index[VLIB_RX];
+
+              p0 = hash_get_mem(nm->nsh_proxy_session_by_key, &key0);
+	      if (PREDICT_FALSE(p0 == 0))
+		{
+		  error0 = NSH_NODE_ERROR_NO_PROXY;
+		  goto trace0;
+		}
+
+	      proxy0 = pool_elt_at_index(nm->nsh_proxy_sessions, p0[0]);
+              if (PREDICT_FALSE(proxy0 == 0))
+                {
+                  error0 = NSH_NODE_ERROR_NO_PROXY;
+                  goto trace0;
+                }
+              nsp_nsi0 = proxy0->nsp_nsi;
+	    }
+
+	  entry0 = hash_get_mem(nm->nsh_mapping_by_key, &nsp_nsi0);
 
 	  b1 = vlib_get_buffer(vm, bi1);
-	  hdr1 = vlib_buffer_get_current(b1);
-	  header_len1 = hdr1->length * 4;
-	  nsp_nsi1 = clib_net_to_host_u32(hdr1->nsp_nsi);
+          hdr1 = vlib_buffer_get_current(b1);
+          if(node_type == NSH_INPUT_TYPE)
+	    {
+	      nsp_nsi1 = clib_net_to_host_u32(hdr1->nsp_nsi);
+	      header_len1 = hdr1->length * 4;
+	    }
+          else
+	    {
+	      memset (&key1, 0, sizeof(key1));
+	      key1.transport_type = NSH_NODE_NEXT_ENCAP_VXLAN4;
+              key1.transport_index = vnet_buffer(b1)->sw_if_index[VLIB_RX];
+
+              p1 = hash_get_mem(nm->nsh_proxy_session_by_key, &key1);
+	      if (PREDICT_FALSE(p1 == 0))
+		{
+		  error1 = NSH_NODE_ERROR_NO_PROXY;
+		  goto trace1;
+		}
+
+	      proxy1 = pool_elt_at_index(nm->nsh_proxy_sessions, p1[0]);
+              if (PREDICT_FALSE(proxy1 == 0))
+                {
+                  error1 = NSH_NODE_ERROR_NO_PROXY;
+                  goto trace1;
+                }
+              nsp_nsi1 = proxy1->nsp_nsi;
+	    }
+
+          entry1 = hash_get_mem(nm->nsh_mapping_by_key, &nsp_nsi1);
 
 	  /* Process packet 0 */
 	  entry0 = hash_get_mem(nm->nsh_mapping_by_key, &nsp_nsi0);
 	  if (PREDICT_FALSE(entry0 == 0))
 	    {
-	      error0 = NSH_INPUT_ERROR_NO_MAPPING;
+	      error0 = NSH_NODE_ERROR_NO_MAPPING;
 	      goto trace0;
 	    }
 
@@ -913,7 +1065,7 @@ nsh_input_map (vlib_main_t * vm,
 	  map0 = pool_elt_at_index(nm->nsh_mappings, entry0[0]);
 	  if (PREDICT_FALSE(map0 == 0))
 	    {
-	      error0 = NSH_INPUT_ERROR_NO_MAPPING;
+	      error0 = NSH_NODE_ERROR_NO_MAPPING;
 	      goto trace0;
 	    }
 
@@ -931,33 +1083,33 @@ nsh_input_map (vlib_main_t * vm,
 	  entry0 = hash_get_mem(nm->nsh_entry_by_key, &map0->mapped_nsp_nsi);
 	  if (PREDICT_FALSE(entry0 == 0))
 	    {
-	      error0 = NSH_INPUT_ERROR_NO_ENTRY;
+	      error0 = NSH_NODE_ERROR_NO_ENTRY;
 	      goto trace0;
 	    }
 
 	  encap_hdr0 = pool_elt_at_index(nm->nsh_entries, entry0[0]);
 	  encap_hdr_len0 = encap_hdr0->length * 4;
 
-          if(PREDICT_TRUE(map0->nsh_action == NSH_ACTION_SWAP))
-            {
+	  if(PREDICT_TRUE(map0->nsh_action == NSH_ACTION_SWAP))
+	    {
               /* Pop old NSH header */
-              vlib_buffer_advance(b0, (word)header_len0);
+	      vlib_buffer_advance(b0, (word)header_len0);
 
-              /* Push new NSH header */
-              vlib_buffer_advance(b0, -(word)encap_hdr_len0);
-              hdr0 = vlib_buffer_get_current(b0);
-              clib_memcpy(hdr0, encap_hdr0, (word)encap_hdr_len0);
+	      /* Push new NSH header */
+	      vlib_buffer_advance(b0, -(word)encap_hdr_len0);
+	      hdr0 = vlib_buffer_get_current(b0);
+	      clib_memcpy(hdr0, encap_hdr0, (word)encap_hdr_len0);
 
-              goto trace0;
-           }
+	      goto trace0;
+	    }
 
-          if(PREDICT_FALSE(map0->nsh_action == NSH_ACTION_PUSH))
-            {
-              /* Push new NSH header */
-              vlib_buffer_advance(b0, -(word)encap_hdr_len0);
-              hdr0 = vlib_buffer_get_current(b0);
-              clib_memcpy(hdr0, encap_hdr0, (word)encap_hdr_len0);
-            }
+	  if(PREDICT_TRUE(map0->nsh_action == NSH_ACTION_PUSH))
+	    {
+	      /* Push new NSH header */
+	      vlib_buffer_advance(b0, -(word)encap_hdr_len0);
+	      hdr0 = vlib_buffer_get_current(b0);
+	      clib_memcpy(hdr0, encap_hdr0, (word)encap_hdr_len0);
+	    }
 
         trace0: b0->error = error0 ? node->errors[error0] : 0;
 
@@ -971,7 +1123,7 @@ nsh_input_map (vlib_main_t * vm,
 	  entry1 = hash_get_mem(nm->nsh_mapping_by_key, &nsp_nsi1);
 	  if (PREDICT_FALSE(entry1 == 0))
 	    {
-	      error1 = NSH_INPUT_ERROR_NO_MAPPING;
+	      error1 = NSH_NODE_ERROR_NO_MAPPING;
 	      goto trace1;
 	    }
 
@@ -979,7 +1131,7 @@ nsh_input_map (vlib_main_t * vm,
 	  map1 = pool_elt_at_index(nm->nsh_mappings, entry1[0]);
 	  if (PREDICT_FALSE(map1 == 0))
 	    {
-	      error1 = NSH_INPUT_ERROR_NO_MAPPING;
+	      error1 = NSH_NODE_ERROR_NO_MAPPING;
 	      goto trace1;
 	    }
 
@@ -989,7 +1141,7 @@ nsh_input_map (vlib_main_t * vm,
 
 	  if(PREDICT_FALSE(map1->nsh_action == NSH_ACTION_POP))
 	    {
-          /* Pop NSH header */
+              /* Pop NSH header */
 	      vlib_buffer_advance(b1, (word)header_len1);
 	      goto trace1;
 	    }
@@ -997,7 +1149,7 @@ nsh_input_map (vlib_main_t * vm,
 	  entry1 = hash_get_mem(nm->nsh_entry_by_key, &map1->mapped_nsp_nsi);
 	  if (PREDICT_FALSE(entry1 == 0))
 	    {
-	      error1 = NSH_INPUT_ERROR_NO_ENTRY;
+	      error1 = NSH_NODE_ERROR_NO_ENTRY;
 	      goto trace1;
 	    }
 
@@ -1042,7 +1194,7 @@ nsh_input_map (vlib_main_t * vm,
 	{
 	  u32 bi0;
 	  vlib_buffer_t * b0;
-	  u32 next0 = NSH_INPUT_NEXT_DROP;
+	  u32 next0 = NSH_NODE_NEXT_DROP;
 	  uword * entry0;
 	  nsh_header_t * hdr0 = 0;
 	  u32 header_len0 = 0;
@@ -1051,6 +1203,9 @@ nsh_input_map (vlib_main_t * vm,
 	  nsh_map_t * map0 = 0;
 	  nsh_header_t * encap_hdr0 = 0;
 	  u32 encap_hdr_len0 = 0;
+	  nsh_proxy_session_by_key_t key0;
+	  uword *p0;
+	  nsh_proxy_session_t *proxy0 = 0;
 
 	  bi0 = from[0];
 	  to_next[0] = bi0;
@@ -1062,13 +1217,39 @@ nsh_input_map (vlib_main_t * vm,
 
 	  b0 = vlib_get_buffer(vm, bi0);
 	  hdr0 = vlib_buffer_get_current(b0);
-	  header_len0 = hdr0->length * 4;
-	  nsp_nsi0 = clib_net_to_host_u32(hdr0->nsp_nsi);
+
+          if(node_type == NSH_INPUT_TYPE)
+            {
+              nsp_nsi0 = clib_net_to_host_u32(hdr0->nsp_nsi);
+              header_len0 = hdr0->length * 4;
+            }
+          else
+	    {
+	      memset (&key0, 0, sizeof(key0));
+	      key0.transport_type = NSH_NODE_NEXT_ENCAP_VXLAN4;
+	      key0.transport_index = vnet_buffer(b0)->sw_if_index[VLIB_RX];
+
+	      p0 = hash_get_mem(nm->nsh_proxy_session_by_key, &key0);
+	      if (PREDICT_FALSE(p0 == 0))
+		{
+		  error0 = NSH_NODE_ERROR_NO_PROXY;
+		  goto trace00;
+		}
+
+	      proxy0 = pool_elt_at_index(nm->nsh_proxy_sessions, p0[0]);
+	      if (PREDICT_FALSE(proxy0 == 0))
+		{
+		  error0 = NSH_NODE_ERROR_NO_PROXY;
+		  goto trace00;
+		}
+	      nsp_nsi0 = proxy0->nsp_nsi;
+	    }
+
 	  entry0 = hash_get_mem(nm->nsh_mapping_by_key, &nsp_nsi0);
 
 	  if (PREDICT_FALSE(entry0 == 0))
 	    {
-	      error0 = NSH_INPUT_ERROR_NO_MAPPING;
+	      error0 = NSH_NODE_ERROR_NO_MAPPING;
 	      goto trace00;
 	    }
 
@@ -1077,7 +1258,7 @@ nsh_input_map (vlib_main_t * vm,
 
 	  if (PREDICT_FALSE(map0 == 0))
 	    {
-	      error0 = NSH_INPUT_ERROR_NO_MAPPING;
+	      error0 = NSH_NODE_ERROR_NO_MAPPING;
 	      goto trace00;
 	    }
 
@@ -1087,16 +1268,15 @@ nsh_input_map (vlib_main_t * vm,
 
 	  if(PREDICT_FALSE(map0->nsh_action == NSH_ACTION_POP))
 	    {
-          /* Pop NSH header */
+              /* Pop NSH header */
 	      vlib_buffer_advance(b0, (word)header_len0);
 	      goto trace00;
 	    }
 
 	  entry0 = hash_get_mem(nm->nsh_entry_by_key, &map0->mapped_nsp_nsi);
-
 	  if (PREDICT_FALSE(entry0 == 0))
 	    {
-	      error0 = NSH_INPUT_ERROR_NO_ENTRY;
+	      error0 = NSH_NODE_ERROR_NO_ENTRY;
 	      goto trace00;
 	    }
 
@@ -1124,7 +1304,7 @@ nsh_input_map (vlib_main_t * vm,
 	      clib_memcpy(hdr0, encap_hdr0, (word)encap_hdr_len0);
 	    }
 
-	trace00: b0->error = error0 ? node->errors[error0] : 0;
+	  trace00: b0->error = error0 ? node->errors[error0] : 0;
 
 	  if (PREDICT_FALSE(b0->flags & VLIB_BUFFER_IS_TRACED))
 	    {
@@ -1143,32 +1323,93 @@ nsh_input_map (vlib_main_t * vm,
   return from_frame->n_vectors;
 }
 
+/**
+ * @brief Graph processing dispatch function for NSH Input
+ *
+ * @node nsh_input
+ * @param *vm
+ * @param *node
+ * @param *from_frame
+ *
+ * @return from_frame->n_vectors
+ *
+ */
+static uword
+nsh_input (vlib_main_t * vm, vlib_node_runtime_t * node,
+                  vlib_frame_t * from_frame)
+{
+  return nsh_input_map (vm, node, from_frame, NSH_INPUT_TYPE);
+}
 
-static char * nsh_input_error_strings[] = {
+/**
+ * @brief Graph processing dispatch function for NSH-Proxy
+ *
+ * @node nsh_proxy
+ * @param *vm
+ * @param *node
+ * @param *from_frame
+ *
+ * @return from_frame->n_vectors
+ *
+ */
+static uword
+nsh_proxy (vlib_main_t * vm, vlib_node_runtime_t * node,
+                  vlib_frame_t * from_frame)
+{
+  return nsh_input_map (vm, node, from_frame, NSH_PROXY_TYPE);
+}
+
+static char * nsh_node_error_strings[] = {
 #define _(sym,string) string,
-  foreach_nsh_input_error
+  foreach_nsh_node_error
 #undef _
 };
 
+/* register nsh-input node */
 VLIB_REGISTER_NODE (nsh_input_node) = {
-  .function = nsh_input_map,
+  .function = nsh_input,
   .name = "nsh-input",
   .vector_size = sizeof (u32),
-  .format_trace = format_nsh_input_map_trace,
+  .format_trace = format_nsh_node_map_trace,
   .format_buffer = format_nsh_header_with_length,
   .type = VLIB_NODE_TYPE_INTERNAL,
 
-  .n_errors = ARRAY_LEN(nsh_input_error_strings),
-  .error_strings = nsh_input_error_strings,
+  .n_errors = ARRAY_LEN(nsh_node_error_strings),
+  .error_strings = nsh_node_error_strings,
 
-  .n_next_nodes = NSH_INPUT_N_NEXT,
+  .n_next_nodes = NSH_NODE_N_NEXT,
 
   .next_nodes = {
-#define _(s,n) [NSH_INPUT_NEXT_##s] = n,
-    foreach_nsh_input_next
+#define _(s,n) [NSH_NODE_NEXT_##s] = n,
+    foreach_nsh_node_next
 #undef _
   },
 };
+
+VLIB_NODE_FUNCTION_MULTIARCH (nsh_input_node, nsh_input);
+
+/* register nsh-proxy node */
+VLIB_REGISTER_NODE (nsh_proxy_node) = {
+  .function = nsh_proxy,
+  .name = "nsh-proxy",
+  .vector_size = sizeof (u32),
+  .format_trace = format_nsh_node_map_trace,
+  .format_buffer = format_nsh_header_with_length,
+  .type = VLIB_NODE_TYPE_INTERNAL,
+
+  .n_errors = ARRAY_LEN(nsh_node_error_strings),
+  .error_strings = nsh_node_error_strings,
+
+  .n_next_nodes = NSH_NODE_N_NEXT,
+
+  .next_nodes = {
+#define _(s,n) [NSH_NODE_NEXT_##s] = n,
+    foreach_nsh_node_next
+#undef _
+  },
+};
+
+VLIB_NODE_FUNCTION_MULTIARCH (nsh_proxy_node, nsh_proxy);
 
 clib_error_t *nsh_init (vlib_main_t *vm)
 {
@@ -1193,6 +1434,9 @@ clib_error_t *nsh_init (vlib_main_t *vm)
   nm->nsh_entry_by_key
     = hash_create_mem (0, sizeof(u32), sizeof (uword));
 
+  nm->nsh_proxy_session_by_key
+    = hash_create_mem (0, sizeof(nsh_proxy_session_by_key_t), sizeof (uword));
+
   name = format (0, "nsh_%08x%c", api_version, 0);
 
   /* Set up the API */
@@ -1206,14 +1450,26 @@ clib_error_t *nsh_init (vlib_main_t *vm)
   ASSERT(vxlan4_gpe_input_node);
   //alagalah - validate we don't really need to use the node value
   vlib_node_add_next (vm, vxlan4_gpe_input_node->index, nsh_input_node.index);
+  vlib_node_add_next (vm, vxlan4_gpe_input_node->index, nsh_proxy_node.index);
 
   vxlan6_gpe_input_node = vlib_get_node_by_name (vm, (u8 *)"vxlan6-gpe-input");
   ASSERT(vxlan6_gpe_input_node);
   vlib_node_add_next (vm, vxlan6_gpe_input_node->index, nsh_input_node.index);
+  vlib_node_add_next (vm, vxlan6_gpe_input_node->index, nsh_proxy_node.index);
 
   gre_input_node = vlib_get_node_by_name (vm, (u8 *)"gre-input");
   ASSERT(gre_input_node);
   vlib_node_add_next (vm, gre_input_node->index, nsh_input_node.index);
+  vlib_node_add_next (vm, gre_input_node->index, nsh_proxy_node.index);
+
+  /* Add NSH-Proxy support */
+  vxlan4_input_node = vlib_get_node_by_name (vm, (u8 *)"vxlan4-input");
+  ASSERT(vxlan4_input_node);
+  vlib_node_add_next (vm, vxlan4_input_node->index, nsh_proxy_node.index);
+
+  vxlan6_input_node = vlib_get_node_by_name (vm, (u8 *)"vxlan6-input");
+  ASSERT(vxlan6_input_node);
+  vlib_node_add_next (vm, vxlan6_input_node->index, nsh_proxy_node.index);
 
   vec_free(name);
 
