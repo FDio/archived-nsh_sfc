@@ -561,7 +561,18 @@ static void vl_api_nsh_add_del_entry_t_handler
   vl_api_nsh_add_del_entry_reply_t * rmp;
   nsh_main_t * nm = &nsh_main;
   int rv;
-  nsh_add_del_entry_args_t *a = 0;
+  nsh_add_del_entry_args_t _a, *a = &_a;
+
+  a->is_add = mp->is_add;
+  a->nsh.ver_o_c = mp->ver_o_c;
+  a->nsh.length = mp->length;
+  a->nsh.md_type = mp->md_type;
+  a->nsh.next_protocol = mp->next_protocol;
+  a->nsh.nsp_nsi = mp->nsp_nsi;
+  a->nsh.c1 = mp->c1;
+  a->nsh.c2 = mp->c2;
+  a->nsh.c3 = mp->c3;
+  a->nsh.c4 = mp->c4;
 
   rv = nsh_add_del_entry (a);
 
