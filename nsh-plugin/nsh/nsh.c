@@ -349,7 +349,13 @@ static void vl_api_nsh_add_del_map_t_handler
   vl_api_nsh_add_del_map_reply_t * rmp;
   nsh_main_t * nm = &nsh_main;
   int rv;
-  nsh_add_del_map_args_t *a = 0;
+  nsh_add_del_map_args_t _a, *a = &_a;
+
+  a->is_add = mp->is_add;
+  a->map.nsp_nsi = mp->nsp_nsi;
+  a->map.mapped_nsp_nsi = mp->mapped_nsp_nsi;
+  a->map.sw_if_index = mp->sw_if_index;
+  a->map.next_node = mp->next_node;
 
   rv = nsh_add_del_map (a);
 

@@ -24,7 +24,7 @@ typedef struct {
   /** Key for nsh_header_t entry: 24bit NSP 8bit NSI */
   u32 nsp_nsi;
 
-  /** Key for nsh_header_t entry to map to. : 24bit NSP 8bit NSI 
+  /** Key for nsh_header_t entry to map to. : 24bit NSP 8bit NSI
    *  This may be ~0 if next action is to decap to NSH next protocol
    *  Note the following heuristic:
    *  if nsp_nsi == mapped_nsp_nsi then use-case is like SFC SFF
@@ -42,7 +42,7 @@ typedef struct {
 
 typedef struct {
   nsh_map_t map;
-  u32 is_add;
+  u8 is_add;
 } nsh_add_del_map_args_t;
 
 typedef struct {
@@ -87,7 +87,7 @@ _(nsp_nsi)					\
 _(c1)						\
 _(c2)						\
 _(c3)						\
-_(c4)						
+_(c4)
 /* TODO Temp killing tlvs as its causing pain - fix in NSH_SFC */
 #define foreach_32bit_field			\
 _(nsp_nsi)                                      \

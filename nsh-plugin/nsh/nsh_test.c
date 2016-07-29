@@ -1,5 +1,5 @@
 /*
- * nsh.c - skeleton vpp-api-test plug-in 
+ * nsh.c - skeleton vpp-api-test plug-in
  *
  * Copyright (c) <current-year> <your-organization>
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,19 +28,19 @@ uword unformat_sw_if_index (unformat_input_t * input, va_list * args);
 
 /* define message structures */
 #define vl_typedefs
-#include <nsh/nsh_all_api_h.h> 
+#include <nsh/nsh_all_api_h.h>
 #undef vl_typedefs
 
 /* declare message handlers for each api */
 
 #define vl_endianfun             /* define message structures */
-#include <nsh/nsh_all_api_h.h> 
+#include <nsh/nsh_all_api_h.h>
 #undef vl_endianfun
 
 /* instantiate all the print functions we know about */
 #define vl_print(handle, ...)
 #define vl_printfun
-#include <nsh/nsh_all_api_h.h> 
+#include <nsh/nsh_all_api_h.h>
 #undef vl_printfun
 
 /* Get the API version number. */
@@ -77,7 +77,7 @@ _(nsh_add_del_map_reply)			\
 foreach_standard_reply_retval_handler;
 #undef _
 
-/* 
+/*
  * Table of message reply handlers, must include boilerplate handlers
  * we just generated
  */
@@ -176,7 +176,7 @@ static int api_nsh_add_del_entry (vat_main_t * vam)
 	nsi_set = 1;
       else if (unformat (line_input, "tlv %x"))
         vec_add1 (tlvs, tmp);
-      else 
+      else
 	return -99; // PARSE ERROR;
     }
 
@@ -184,7 +184,7 @@ static int api_nsh_add_del_entry (vat_main_t * vam)
 
     if (nsp_set == 0)
       return -1; //TODO Error type for this cond: clib_error_return (0, "nsp not specified");
-  
+
     if (nsi_set == 0)
       return -2; //TODO Error type for this cond:clib_error_return (0, "nsi not specified");
 
@@ -193,10 +193,10 @@ static int api_nsh_add_del_entry (vat_main_t * vam)
 
     //TODO sort out TLVS and MD Type2 support
     md_type = 1;
-    length = 6; 
+    length = 6;
 
     nsp_nsi = (nsp<<8) | nsi;
-  
+
     /* Construct the API message */
     M(NSH_ADD_DEL_ENTRY, nsh_add_del_entry);
     mp->is_add = is_add;
@@ -244,8 +244,8 @@ static int api_nsh_add_del_map (vat_main_t * vam)
 	next_node = NSH_INPUT_NEXT_ENCAP_VXLANGPE;
       else if (unformat (line_input, "encap-none"))
 	next_node = NSH_INPUT_NEXT_DROP; // Once moved to NSHSFC see nsh.h:foreach_nsh_input_next to handle this case
-      else 
-	return -99; //TODO clib_error_return (0, "parse error: '%U'", 
+      else
+	return -99; //TODO clib_error_return (0, "parse error: '%U'",
     }
 
     unformat_free (line_input);
@@ -260,7 +260,7 @@ static int api_nsh_add_del_map (vat_main_t * vam)
       return -3; //TODO clib_error_return (0, "must specific action: [encap-gre-intf <nn> | encap-vxlan-gpe-intf <nn> | encap-none]");
 
 
-    M(NSH_ADD_DEL_ENTRY, nsh_add_del_entry);
+    M(NSH_ADD_DEL_MAP, nsh_add_del_map);
     /* set args structure */
     mp->is_add = is_add;
     mp->nsp_nsi = (nsp<< NSH_NSP_SHIFT) | nsi;
@@ -276,7 +276,7 @@ static int api_nsh_add_del_map (vat_main_t * vam)
 
 
 }
-/* 
+/*
  * List of messages that the api test plugin sends,
  * and that the data plane plugin processes
  */
@@ -295,15 +295,15 @@ void vat_api_hookup (vat_main_t *vam)
                            vl_noop_handler,                     \
                            vl_api_##n##_t_endian,               \
                            vl_api_##n##_t_print,                \
-                           sizeof(vl_api_##n##_t), 1); 
+                           sizeof(vl_api_##n##_t), 1);
     foreach_vpe_api_reply_msg;
 #undef _
 
     /* API messages we can send */
 #define _(n,h) hash_set_mem (vam->function_by_name, #n, api_##n);
     foreach_vpe_api_msg;
-#undef _    
-    
+#undef _
+
     /* Help strings */
 #define _(n,h) hash_set_mem (vam->help_by_name, #n, h);
     foreach_vpe_api_msg;
@@ -323,8 +323,8 @@ clib_error_t * vat_plugin_register (vat_main_t *vam)
 
   if (sm->msg_id_base != (u16) ~0)
     vat_api_hookup (vam);
-  
+
   vec_free(name);
-  
+
   return 0;
 }
