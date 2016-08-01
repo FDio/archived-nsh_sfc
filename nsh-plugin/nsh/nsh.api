@@ -40,6 +40,26 @@ define nsh_add_del_entry_reply {
     i32 retval;
 };
 
+
+define nsh_entry_dump {
+    u32 client_index;
+    u32 context;
+};
+
+define nsh_entry_details {
+    u32 context;
+    u32 nsp_nsi;
+    u8 md_type;
+    u8 ver_o_c;
+    u8 length;
+    u8 next_protocol;
+    u32 c1; 
+    u32 c2;
+    u32 c3; 
+    u32 c4;
+    u32 tlvs[0];
+};
+
 /** \brief Set or delete a mapping from one NSH header to another and its egress (decap to inner packet, encap NSH with outer header)
     @param client_index - opaque cookie to identify the sender
     @param context - sender context, to match reply w/ request

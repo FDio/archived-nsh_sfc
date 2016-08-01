@@ -83,6 +83,7 @@ foreach_standard_reply_retval_handler;
  */
 #define foreach_vpe_api_reply_msg                                       \
 _(NSH_ADD_DEL_ENTRY_REPLY, nsh_add_del_entry_reply)			\
+_(NSH_ENTRY_DETAILS, nsh_entry_details)                                 \
 _(NSH_ADD_DEL_MAP_REPLY, nsh_add_del_map_reply)
 
 
@@ -214,6 +215,45 @@ static int api_nsh_add_del_entry (vat_main_t * vam)
     W;
 }
 
+static void vl_api_nsh_entry_details_t_handler
+(vl_api_nsh_entry_details_t * mp)
+{
+    vat_main_t * vam = &vat_main;
+
+    fformat(vam->ofp, "%11d%11d%11d%11d%14d%14d%14d%14d%14d\n",
+            mp->ver_o_c,
+            mp->length,
+	    mp->md_type,
+	    mp->next_protocol,
+            ntohl(mp->nsp_nsi),
+	    ntohl(mp->c1),
+	    ntohl(mp->c2),
+	    ntohl(mp->c3),
+            ntohl(mp->c4));
+}
+
+static int api_nsh_entry_dump (vat_main_t * vam)
+{
+    nsh_test_main_t * sm = &nsh_test_main;
+    vl_api_nsh_entry_dump_t *mp;
+    f64 timeout;
+
+    if (!vam->json_output) {
+        fformat(vam->ofp, "%11s%11s%15s%14s%14s%13s%13s%13s%13s\n",
+                "ver_o_c", "length", "md_type", "next_protocol",
+                "nsp_nsi", "c1", "c2", "c3", "c4");
+    }
+
+    /* Get list of nsh entries */
+    M(NSH_ENTRY_DUMP, nsh_entry_dump);
+
+    /* send it... */
+    S;
+
+    /* Wait for a reply... */
+    W;
+}
+
 static int api_nsh_add_del_map (vat_main_t * vam)
 {
     nsh_test_main_t * sm = &nsh_test_main;
@@ -282,6 +322,7 @@ static int api_nsh_add_del_map (vat_main_t * vam)
  */
 #define foreach_vpe_api_msg \
 _(nsh_add_del_entry, "{nsp <nn> nsi <nn>} c1 <nn> c2 <nn> c3 <nn> c4 <nn> [md-type <nn>] [tlv <xx>] [del]") \
+_(nsh_entry_dump, "")   \
 _(nsh_add_del_map, "nsp <nn> nsi <nn> [del] map-nsp <nn> map-nsi <nn> [encap-gre-intf <nn> | encap-vxlan-gpe-intf <nn> | encap-none]")
 
 void vat_api_hookup (vat_main_t *vam)

@@ -74,6 +74,7 @@
 
 #define foreach_nsh_plugin_api_msg		\
   _(NSH_ADD_DEL_ENTRY, nsh_add_del_entry)	\
+  _(NSH_ENTRY_DUMP, nsh_entry_dump)             \
   _(NSH_ADD_DEL_MAP, nsh_add_del_map)
 
 clib_error_t *
@@ -584,6 +585,49 @@ static void vl_api_nsh_add_del_entry_t_handler
 
   REPLY_MACRO(VL_API_NSH_ADD_DEL_ENTRY_REPLY);
 }
+
+static void send_nsh_entry_details
+(nsh_header_t * t, unix_shared_memory_queue_t * q, u32 context)
+{
+    vl_api_nsh_entry_details_t * rmp;
+
+    rmp = vl_msg_api_alloc (sizeof (*rmp));
+    memset (rmp, 0, sizeof (*rmp));
+
+    rmp->_vl_msg_id = ntohs(VL_API_NSH_ENTRY_DETAILS);
+    rmp->ver_o_c = t->ver_o_c;
+    rmp->length = t->length;
+    rmp->md_type = t->md_type;
+    rmp->next_protocol = t->next_protocol;
+    rmp->nsp_nsi = t->nsp_nsi;
+    rmp->c1 = t->c1;
+    rmp->c2 = t->c2;
+    rmp->c3 = t->c3;
+    rmp->c4 = t->c4;
+
+    rmp->context = context;
+
+    vl_msg_api_send_shmem (q, (u8 *)&rmp);
+}
+
+static void vl_api_nsh_entry_dump_t_handler
+(vl_api_nsh_entry_dump_t * mp)
+{
+    unix_shared_memory_queue_t * q;
+    nsh_main_t * nm = &nsh_main;
+    nsh_header_t * t;
+
+    q = vl_api_client_index_to_input_queue (mp->client_index);
+    if (q == 0) {
+        return;
+    }
+
+    pool_foreach (t, nm->nsh_entries,
+    ({
+	send_nsh_entry_details(t, q, mp->context);
+    }));
+}
+
 
 static clib_error_t *
 show_nsh_entry_command_fn (vlib_main_t * vm,
