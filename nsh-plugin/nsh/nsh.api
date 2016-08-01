@@ -24,11 +24,10 @@ define nsh_add_del_entry {
     u8 ver_o_c;
     u8 length;
     u8 next_protocol;
-    u32 c1; 
+    u32 c1;
     u32 c2;
-    u32 c3; 
+    u32 c3;
     u32 c4;
-    u32 tlvs[0];
 };
 
 /** \brief Reply from adding NSH entry (nsh_add_del_entry)
@@ -53,19 +52,18 @@ define nsh_entry_details {
     u8 ver_o_c;
     u8 length;
     u8 next_protocol;
-    u32 c1; 
+    u32 c1;
     u32 c2;
-    u32 c3; 
+    u32 c3;
     u32 c4;
-    u32 tlvs[0];
 };
 
 /** \brief Set or delete a mapping from one NSH header to another and its egress (decap to inner packet, encap NSH with outer header)
     @param client_index - opaque cookie to identify the sender
     @param context - sender context, to match reply w/ request
     @param is_add - add address if non-zero, else delete
-    @param nsh_nsi - Key for nsh_header_t entry to map to. : 24bit NSP 8bit NSI 
-    @param mapped_nsp_nsi - Key for nsh_header_t entry to map to. : 24bit NSP 8bit NSI this may be ~0 
+    @param nsh_nsi - Key for nsh_header_t entry to map to. : 24bit NSP 8bit NSI
+    @param mapped_nsp_nsi - Key for nsh_header_t entry to map to. : 24bit NSP 8bit NSI this may be ~0
        if next action is to decap to NSH next protocol
        Note the following heuristic:
        	    - if nsp_nsi == mapped_nsp_nsi then use-case is like SFC SFF

@@ -143,7 +143,6 @@ static int api_nsh_add_del_entry (vat_main_t * vam)
     u32 c2 = 0;
     u32 c3 = 0;
     u32 c4 = 0;
-    u32 *tlvs = 0;
     u32 tmp;
     vl_api_nsh_add_del_entry_t * mp;
 
@@ -176,8 +175,6 @@ static int api_nsh_add_del_entry (vat_main_t * vam)
 	nsp_set = 1;
       else if (unformat (line_input, "nsi %d", &nsi))
 	nsi_set = 1;
-      else if (unformat (line_input, "tlv %x"))
-        vec_add1 (tlvs, tmp);
       else
 	return -99; // PARSE ERROR;
     }
@@ -207,7 +204,6 @@ static int api_nsh_add_del_entry (vat_main_t * vam)
     foreach_copy_nshhdr_field;
 #undef _
 
-    mp->tlvs[0] = 0 ; // TODO FIXME this shouldn't be set 0 - in NSH_SFC project
 
     /* send it... */
     S;

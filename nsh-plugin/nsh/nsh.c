@@ -469,7 +469,6 @@ nsh_add_del_entry_command_fn (vlib_main_t * vm,
   u32 c2 = 0;
   u32 c3 = 0;
   u32 c4 = 0;
-  u32 *tlvs = 0;
   u32 tmp;
   int rv;
   nsh_add_del_entry_args_t _a, * a = &_a;
@@ -507,8 +506,6 @@ nsh_add_del_entry_command_fn (vlib_main_t * vm,
       nsp_set = 1;
     else if (unformat (line_input, "nsi %d", &nsi))
       nsi_set = 1;
-    else if (unformat (line_input, "tlv %x"))
-      vec_add1 (tlvs, tmp);
     else
       return clib_error_return (0, "parse error: '%U'",
                                 format_unformat_error, line_input);
@@ -537,8 +534,6 @@ nsh_add_del_entry_command_fn (vlib_main_t * vm,
 #define _(x) a->nsh.x = x;
   foreach_copy_nshhdr_field;
 #undef _
-
-  a->nsh.tlvs[0] = 0 ; // TODO FIXME this shouldn't be set 0 - in NSH_SFC project
 
   rv = nsh_add_del_entry (a);
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 NSH_PLUGIN_DIR=$(dirname $0)
-NSH_INSTALL_PREFIX=${NSH_INSTALL_PREFIX:-/usr}
+NSH_INSTALL_PREFIX=${NSH_INSTALL_PREFIX:-/usr/local}
 cd ${NSH_PLUGIN_DIR}
 autoreconf -i -f
 [ -d build ] ||  mkdir build
