@@ -84,7 +84,8 @@ foreach_standard_reply_retval_handler;
 #define foreach_vpe_api_reply_msg                                       \
 _(NSH_ADD_DEL_ENTRY_REPLY, nsh_add_del_entry_reply)			\
 _(NSH_ENTRY_DETAILS, nsh_entry_details)                                 \
-_(NSH_ADD_DEL_MAP_REPLY, nsh_add_del_map_reply)
+_(NSH_ADD_DEL_MAP_REPLY, nsh_add_del_map_reply)                         \
+_(NSH_MAP_DETAILS, nsh_map_details)
 
 
 /* M: construct, but don't yet send a message */
@@ -316,6 +317,40 @@ static int api_nsh_add_del_map (vat_main_t * vam)
 
 
 }
+
+static void vl_api_nsh_map_details_t_handler
+(vl_api_nsh_map_details_t * mp)
+{
+    vat_main_t * vam = &vat_main;
+
+    fformat(vam->ofp, "%14d%14d%14d%14d\n",
+            ntohl(mp->nsp_nsi),
+	    ntohl(mp->mapped_nsp_nsi),
+	    ntohl(mp->sw_if_index),
+	    ntohl(mp->next_node));
+}
+
+static int api_nsh_map_dump (vat_main_t * vam)
+{
+    nsh_test_main_t * sm = &nsh_test_main;
+    vl_api_nsh_map_dump_t *mp;
+    f64 timeout;
+
+    if (!vam->json_output) {
+        fformat(vam->ofp, "%16s%16s%13s%13s\n",
+                "nsp_nsi", "mapped_nsp_nsi", "sw_if_index", "next_node");
+    }
+
+    /* Get list of nsh entries */
+    M(NSH_MAP_DUMP, nsh_map_dump);
+
+    /* send it... */
+    S;
+
+    /* Wait for a reply... */
+    W;
+}
+
 /*
  * List of messages that the api test plugin sends,
  * and that the data plane plugin processes
@@ -323,7 +358,8 @@ static int api_nsh_add_del_map (vat_main_t * vam)
 #define foreach_vpe_api_msg \
 _(nsh_add_del_entry, "{nsp <nn> nsi <nn>} c1 <nn> c2 <nn> c3 <nn> c4 <nn> [md-type <nn>] [tlv <xx>] [del]") \
 _(nsh_entry_dump, "")   \
-_(nsh_add_del_map, "nsp <nn> nsi <nn> [del] map-nsp <nn> map-nsi <nn> [encap-gre-intf <nn> | encap-vxlan-gpe-intf <nn> | encap-none]")
+_(nsh_add_del_map, "nsp <nn> nsi <nn> [del] mapped-nsp <nn> mapped-nsi <nn> [encap-gre-intf <nn> | encap-vxlan-gpe-intf <nn> | encap-none]")  \
+_(nsh_map_dump, "")
 
 void vat_api_hookup (vat_main_t *vam)
 {

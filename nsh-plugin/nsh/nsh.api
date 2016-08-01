@@ -93,3 +93,16 @@ define nsh_add_del_map_reply {
     u32 context;
     i32 retval;
 };
+
+define nsh_map_dump {
+    u32 client_index;
+    u32 context;
+};
+
+define nsh_map_details {
+    u32 context;
+    u32 nsp_nsi;
+    u32 mapped_nsp_nsi;
+    u32 sw_if_index;
+    u32 next_node;
+};

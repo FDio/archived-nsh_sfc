@@ -75,7 +75,8 @@
 #define foreach_nsh_plugin_api_msg		\
   _(NSH_ADD_DEL_ENTRY, nsh_add_del_entry)	\
   _(NSH_ENTRY_DUMP, nsh_entry_dump)             \
-  _(NSH_ADD_DEL_MAP, nsh_add_del_map)
+  _(NSH_ADD_DEL_MAP, nsh_add_del_map)           \
+  _(NSH_MAP_DUMP, nsh_map_dump)
 
 clib_error_t *
 vlib_plugin_register (vlib_main_t * vm, vnet_plugin_handoff_t * h,
@@ -628,6 +629,42 @@ static void vl_api_nsh_entry_dump_t_handler
     }));
 }
 
+static void send_nsh_map_details
+(nsh_map_t * t, unix_shared_memory_queue_t * q, u32 context)
+{
+    vl_api_nsh_map_details_t * rmp;
+
+    rmp = vl_msg_api_alloc (sizeof (*rmp));
+    memset (rmp, 0, sizeof (*rmp));
+
+    rmp->_vl_msg_id = ntohs(VL_API_NSH_MAP_DETAILS);
+    rmp->nsp_nsi = t->nsp_nsi;
+    rmp->mapped_nsp_nsi = t->mapped_nsp_nsi;
+    rmp->sw_if_index = t->sw_if_index;
+    rmp->next_node = t->next_node;
+
+    rmp->context = context;
+
+    vl_msg_api_send_shmem (q, (u8 *)&rmp);
+}
+
+static void vl_api_nsh_map_dump_t_handler
+(vl_api_nsh_map_dump_t * mp)
+{
+    unix_shared_memory_queue_t * q;
+    nsh_main_t * nm = &nsh_main;
+    nsh_map_t * t;
+
+    q = vl_api_client_index_to_input_queue (mp->client_index);
+    if (q == 0) {
+        return;
+    }
+
+    pool_foreach (t, nm->nsh_mappings,
+    ({
+	send_nsh_map_details(t, q, mp->context);
+    }));
+}
 
 static clib_error_t *
 show_nsh_entry_command_fn (vlib_main_t * vm,
