@@ -85,7 +85,8 @@ foreach_standard_reply_retval_handler;
 _(NSH_ADD_DEL_ENTRY_REPLY, nsh_add_del_entry_reply)			\
 _(NSH_ENTRY_DETAILS, nsh_entry_details)                                 \
 _(NSH_ADD_DEL_MAP_REPLY, nsh_add_del_map_reply)                         \
-_(NSH_MAP_DETAILS, nsh_map_details)
+_(NSH_MAP_DETAILS, nsh_map_details)                                     \
+_(CONTROL_PING_REPLY, control_ping_reply)
 
 
 /* M: construct, but don't yet send a message */
@@ -123,6 +124,42 @@ do {                                            \
     }                                           \
     return -99;                                 \
 } while(0);
+
+
+static void vl_api_control_ping_reply_t_handler
+(vl_api_control_ping_reply_t * mp)
+{
+    vat_main_t * vam = &vat_main;
+    i32 retval = ntohl(mp->retval);
+    if (vam->async_mode) {
+        vam->async_errors += (retval < 0);
+    } else {
+        vam->retval = retval;
+        vam->result_ready = 1;
+    }
+}
+
+static void vl_api_control_ping_reply_t_handler_json
+(vl_api_control_ping_reply_t * mp)
+{
+    vat_main_t * vam = &vat_main;
+    i32 retval = ntohl(mp->retval);
+
+    if (VAT_JSON_NONE != vam->json_tree.type) {
+        vat_json_print(vam->ofp, &vam->json_tree);
+        vat_json_free(&vam->json_tree);
+        vam->json_tree.type = VAT_JSON_NONE;
+    } else {
+        /* just print [] */
+        vat_json_init_array(&vam->json_tree);
+        vat_json_print(vam->ofp, &vam->json_tree);
+        vam->json_tree.type = VAT_JSON_NONE;
+    }
+
+    vam->retval = retval;
+    vam->result_ready = 1;
+}
+
 
 static int api_nsh_add_del_entry (vat_main_t * vam)
 {

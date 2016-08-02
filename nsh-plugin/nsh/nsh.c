@@ -70,13 +70,36 @@
     vl_msg_api_send_shmem (q, (u8 *)&rmp);                      \
   } while(0);
 
+#define REPLY_MACRO2(t, body)                                   \
+  do {                                                          \
+    unix_shared_memory_queue_t * q;                             \
+    rv = vl_msg_api_pd_handler (mp, rv);                        \
+    q = vl_api_client_index_to_input_queue (mp->client_index);  \
+    if (!q)                                                     \
+        return;                                                 \
+                                                                \
+    rmp = vl_msg_api_alloc (sizeof (*rmp));                     \
+    rmp->_vl_msg_id = ntohs((t));                               \
+    rmp->context = mp->context;                                 \
+    rmp->retval = ntohl(rv);                                    \
+    do {body;} while (0);                                       \
+    vl_msg_api_send_shmem (q, (u8 *)&rmp);                      \
+  } while(0);
+
+#define FINISH                                  \
+    vec_add1 (s, 0);                            \
+    vl_print (handle, (char *)s);               \
+    vec_free (s);                               \
+    return handle;
+
 /* List of message types that this plugin understands */
 
 #define foreach_nsh_plugin_api_msg		\
   _(NSH_ADD_DEL_ENTRY, nsh_add_del_entry)	\
   _(NSH_ENTRY_DUMP, nsh_entry_dump)             \
   _(NSH_ADD_DEL_MAP, nsh_add_del_map)           \
-  _(NSH_MAP_DUMP, nsh_map_dump)
+  _(NSH_MAP_DUMP, nsh_map_dump)                 \
+  _(CONTROL_PING, control_ping)
 
 clib_error_t *
 vlib_plugin_register (vlib_main_t * vm, vnet_plugin_handoff_t * h,
@@ -94,6 +117,19 @@ vlib_plugin_register (vlib_main_t * vm, vnet_plugin_handoff_t * h,
 typedef struct {
   nsh_header_t nsh_header;
 } nsh_input_trace_t;
+
+
+static void vl_api_control_ping_t_handler
+(vl_api_control_ping_t *mp)
+{
+    vl_api_control_ping_reply_t * rmp;
+    int rv = 0;
+
+    REPLY_MACRO2(VL_API_CONTROL_PING_REPLY,
+    ({
+	rmp->vpe_pid = ntohl (getpid());
+    }));
+}
 
 u8 * format_nsh_header (u8 * s, va_list * args)
 {
