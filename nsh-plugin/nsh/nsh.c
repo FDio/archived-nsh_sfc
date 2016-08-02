@@ -79,7 +79,7 @@
         return;                                                 \
                                                                 \
     rmp = vl_msg_api_alloc (sizeof (*rmp));                     \
-    rmp->_vl_msg_id = ntohs((t));                               \
+    rmp->_vl_msg_id = ntohs((t)+nm->msg_id_base);               \
     rmp->context = mp->context;                                 \
     rmp->retval = ntohl(rv);                                    \
     do {body;} while (0);                                       \
@@ -99,7 +99,7 @@
   _(NSH_ENTRY_DUMP, nsh_entry_dump)             \
   _(NSH_ADD_DEL_MAP, nsh_add_del_map)           \
   _(NSH_MAP_DUMP, nsh_map_dump)                 \
-  _(CONTROL_PING, control_ping)
+  _(NSH_CONTROL_PING, nsh_control_ping)
 
 clib_error_t *
 vlib_plugin_register (vlib_main_t * vm, vnet_plugin_handoff_t * h,
@@ -119,13 +119,14 @@ typedef struct {
 } nsh_input_trace_t;
 
 
-static void vl_api_control_ping_t_handler
-(vl_api_control_ping_t *mp)
+static void vl_api_nsh_control_ping_t_handler
+(vl_api_nsh_control_ping_t *mp)
 {
-    vl_api_control_ping_reply_t * rmp;
+    nsh_main_t * nm = &nsh_main;
+    vl_api_nsh_control_ping_reply_t * rmp;
     int rv = 0;
 
-    REPLY_MACRO2(VL_API_CONTROL_PING_REPLY,
+    REPLY_MACRO2(VL_API_NSH_CONTROL_PING_REPLY,
     ({
 	rmp->vpe_pid = ntohl (getpid());
     }));
