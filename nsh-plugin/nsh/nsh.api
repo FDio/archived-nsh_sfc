@@ -28,6 +28,8 @@ define nsh_add_del_entry {
     u32 c2;
     u32 c3;
     u32 c4;
+    u32 tlv_length;
+    u8 tlv[tlv_length];
 };
 
 /** \brief Reply from adding NSH entry (nsh_add_del_entry)
@@ -56,6 +58,8 @@ define nsh_entry_details {
     u32 c2;
     u32 c3;
     u32 c4;
+    u32 tlv_length;
+    u8 tlv[tlv_length];
 };
 
 /** \brief Set or delete a mapping from one NSH header to another and its egress (decap to inner packet, encap NSH with outer header)
