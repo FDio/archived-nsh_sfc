@@ -623,11 +623,12 @@ static void send_nsh_entry_details
 (nsh_header_t * t, unix_shared_memory_queue_t * q, u32 context)
 {
     vl_api_nsh_entry_details_t * rmp;
+    nsh_main_t * nm = &nsh_main;
 
     rmp = vl_msg_api_alloc (sizeof (*rmp));
     memset (rmp, 0, sizeof (*rmp));
 
-    rmp->_vl_msg_id = ntohs(VL_API_NSH_ENTRY_DETAILS);
+    rmp->_vl_msg_id = ntohs((VL_API_NSH_ENTRY_DETAILS)+nm->msg_id_base);
     rmp->ver_o_c = t->ver_o_c;
     rmp->length = t->length;
     rmp->md_type = t->md_type;
@@ -665,11 +666,12 @@ static void send_nsh_map_details
 (nsh_map_t * t, unix_shared_memory_queue_t * q, u32 context)
 {
     vl_api_nsh_map_details_t * rmp;
+    nsh_main_t * nm = &nsh_main;
 
     rmp = vl_msg_api_alloc (sizeof (*rmp));
     memset (rmp, 0, sizeof (*rmp));
 
-    rmp->_vl_msg_id = ntohs(VL_API_NSH_MAP_DETAILS);
+    rmp->_vl_msg_id = ntohs((VL_API_NSH_MAP_DETAILS)+nm->msg_id_base);
     rmp->nsp_nsi = t->nsp_nsi;
     rmp->mapped_nsp_nsi = t->mapped_nsp_nsi;
     rmp->sw_if_index = t->sw_if_index;
