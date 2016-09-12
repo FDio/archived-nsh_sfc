@@ -4,7 +4,7 @@
  
   <groupId>io.fd.nsh_sfc</groupId>
   <artifactId>nsh-sfc</artifactId>
-  <version>16.09-SNAPSHOT</version>
+  <version>16.12-SNAPSHOT</version>
   <packaging>jar</packaging>
  
   <name>nsh-sfc</name>
@@ -18,7 +18,7 @@
     <dependency>
       <groupId>io.fd.vpp</groupId>
       <artifactId>jvpp-registry</artifactId>
-      <version>16.09-SNAPSHOT</version>
+      <version>16.12-SNAPSHOT</version>
     </dependency>
   </dependencies>
   
