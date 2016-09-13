@@ -27,5 +27,8 @@ if test -f /usr/bin/lsb_release  && test `lsb_release -si` == "Ubuntu"  && test 
     break
 fi
 ${NSH_PLUGIN_DIR}/build.sh
-
+cd ${NSH_PLUGIN_DIR}/build/
+if [ "${OS}" == "centos7" ]; then
+    make pkg-rpm
+fi
 
