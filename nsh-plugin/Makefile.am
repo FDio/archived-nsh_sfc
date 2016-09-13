@@ -53,3 +53,7 @@ install-data-hook:
 	rm -f $(prefix)/lib/nsh_plugin.*
 	rm -f $(prefix)/lib/nsh_test_plugin.*
 
+pkg-rpm: all install
+	cd $(srcdir)/packaging/rpm; \
+	rpmbuild -bb --define "_topdir $$PWD" \
+		--define "_plugin_prefix ${prefix}" vpp-nsh-plugin.spec
