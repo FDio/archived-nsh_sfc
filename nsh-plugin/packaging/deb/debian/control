@@ -1,0 +1,21 @@
+Source: vpp-nsh-plugin
+Section: net
+Priority: extra
+Maintainer: fd.io nsh-plugin for vpp
+Build-Depends: debhelper (>= 9), dkms, dh-systemd
+Standards-Version: 3.9.4
+
+Package: vpp-nsh-plugin
+Architecture: any
+Depends: vpp, ${shlibs:Depends}, ${misc:Depends}
+Description: fd.io nsh-plugin for vpp
+
+Package: vpp-nsh-plugin-dev
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: fd.io nsh-plugin for vpp api headers
+
+Package: vpp-nsh-plugin-dbg
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: fd.io nsh-plugin for vpp--debug symbols

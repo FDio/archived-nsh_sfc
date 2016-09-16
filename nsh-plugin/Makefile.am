@@ -1,4 +1,3 @@
-
 # Copyright (c) <current-year> <your-organization>
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -57,3 +56,21 @@ pkg-rpm: all install
 	cd $(srcdir)/packaging/rpm; \
 	rpmbuild -bb --define "_topdir $$PWD" \
 		--define "_plugin_prefix ${prefix}" vpp-nsh-plugin.spec
+
+pkg-deb: all install
+	DOTPREFIX=$$(readlink -f ${srcdir}/packaging/deb/debian); \
+	echo DOTPREFIX $${DOTPREFIX}; \
+	DOTPREFIX=$$(echo $${DOTPREFIX}| sed 's;[^\/]*;..;g'); \
+	echo DOTPREFIX $${DOTPREFIX}; \
+	echo ../../$${DOTPREFIX}/$(prefix)/lib/vpp_plugins/nsh_plugin.so /usr/lib/vpp_plugins > $(srcdir)/packaging/deb/debian/vpp-nsh-plugin.install; \
+	echo ../../$${DOTPREFIX}/$(prefix)/lib/vpp_api_test_plugins/nsh_test_plugin.so /usr/lib/vpp_api_test_plugins >> $(srcdir)/packaging/deb/debian/vpp-nsh-plugin.install; \
+	echo ../../$${DOTPREFIX}/$(prefix)/include/vpp-api/nsh_all_api_h.h /usr/include/vpp-api > $(srcdir)/packaging/deb/debian/vpp-nsh-plugin-dev.install; \
+	echo ../../$${DOTPREFIX}/$(prefix)/include/vpp-api/nsh_msg_enum.h /usr/include/vpp-api >> $(srcdir)/packaging/deb/debian/vpp-ns\
+h-plugin-dev.install; \
+	echo ../../$${DOTPREFIX}/$(prefix)/include/vpp-api/nsh.api.h /usr/include/vpp-api >> $(srcdir)/packaging/deb/debian/vpp-nsh-plugin-dev.install
+	$(srcdir)/packaging/scripts/generate-deb-changelog; 				\
+	(								\
+	cd $(srcdir)/packaging/deb &&							\
+	dpkg-buildpackage -us -uc -b					\
+	)
+

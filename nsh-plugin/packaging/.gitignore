@@ -1,0 +1,12 @@
+deb/debian/changelog
+deb/debian/files
+deb/debian/*.log
+deb/debian/*.substvars
+deb/debian/*.install
+deb/debian/*.debhelper
+deb/debian/vpp-nsh-plugin/
+deb/debian/vpp-nsh-plugin-dev/
+deb/debian/vpp-nsh-plugin-dbg/
+*.changes
+*.deb
+
