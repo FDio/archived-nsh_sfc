@@ -1,16 +1,17 @@
 # Build artifacts
-aclocal.m4 
+aclocal.m4
 autom4te.cache/
-build/ 
-compile 
-config.guess 
+build/
+compile
+config.guess
 config.sub
-configure 
-depcomp 
-install-sh 
-ltmain.sh 
-Makefile.in 
+configure
+depcomp
+install-sh
+ltmain.sh
+libtool.m4
+Makefile.in
 missing
-
 *~
 cscope*
+
