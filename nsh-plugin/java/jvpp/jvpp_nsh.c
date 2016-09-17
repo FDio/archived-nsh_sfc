@@ -40,10 +40,9 @@
 
 #include <jvpp-common/jvpp_common.h>
 
-// FIXME use less fragile path
-#include "../build/java/jvpp/org_openvpp_jvpp_nsh_JVppNshImpl.h"
+#include "jvpp/org_openvpp_jvpp_nsh_JVppNshImpl.h"
 #include "jvpp_nsh.h"
-#include "./build/java/jvpp/jvpp_nsh_gen.h"
+#include "jvpp/jvpp_nsh_gen.h"
 
 /*
  * Class:     org_openvpp_jvpp_nsh_JVppNshImpl
