@@ -22,7 +22,7 @@ CPPFLAGS += -DDEBUG -g
 
 lib_LTLIBRARIES = nsh_plugin.la nsh_test_plugin.la
 nsh_plugin_la_SOURCES = nsh/nsh.c  \
-	nsh/nsh_plugin.api.h 
+	vpp-api/nsh.api.h 
 nsh_plugin_la_LDFLAGS = -module
 
 BUILT_SOURCES = vpp-api/nsh.api.h
@@ -40,7 +40,7 @@ nobase_include_HEADERS =			\
   vpp-api/nsh.api.h
 
 nsh_test_plugin_la_SOURCES = \
-  nsh/nsh_test.c nsh/nsh_plugin.api.h
+  nsh/nsh_test.c vpp-api/nsh.api.h
 nsh_test_plugin_la_LDFLAGS = -module
 
 install-data-hook:

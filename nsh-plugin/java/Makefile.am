@@ -33,7 +33,7 @@ jvpp_gen = jvpp_gen.py
 
 
 lib_LTLIBRARIES = libjvpp_nsh.la
-libjvpp_nsh_la_SOURCES = $(srcdir)/../java/nsh.api.h jvpp/jvpp_nsh.c jvpp/org_openvpp_jvpp_nsh_JVppNshImpl.h
+libjvpp_nsh_la_SOURCES = ../vpp-api/nsh.api.h jvpp/jvpp_nsh.c jvpp/org_openvpp_jvpp_nsh_JVppNshImpl.h
 libjvpp_nsh_la_LIBADD = -lvlibmemoryclient -lvlibapi -lsvm -lvppinfra \
 	              -lpthread -lm -lrt -ljvpp_common
 libjvpp_nsh_la_LDFLAGS = -module
