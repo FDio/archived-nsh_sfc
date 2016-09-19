@@ -23,10 +23,10 @@ This package contains the headers for C bindings for the vpp-nsh-plugin
 #
 # vpp-nsh-plugin
 #
-mkdir -p -m755 %{buildroot}%{_libdir}/vpp_plugins
-install -m 644 %{_plugin_prefix}/lib/vpp_plugins/nsh_plugin.so %{buildroot}%{_libdir}/vpp_plugins/nsh_plugin.so
-mkdir -p -m755 %{buildroot}%{_libdir}/vpp_api_test_plugins
-install -m 644 %{_plugin_prefix}/lib/vpp_api_test_plugins/nsh_test_plugin.so %{buildroot}%{_libdir}/vpp_api_test_plugins/nsh_test_plugin.so
+mkdir -p -m755 %{buildroot}/usr/lib/vpp_plugins
+install -m 644 %{_plugin_prefix}/lib/vpp_plugins/nsh_plugin.so %{buildroot}/usr/lib/vpp_plugins/nsh_plugin.so
+mkdir -p -m755 %{buildroot}/usr/lib/vpp_api_test_plugins
+install -m 644 %{_plugin_prefix}/lib/vpp_api_test_plugins/nsh_test_plugin.so %{buildroot}/usr/lib/vpp_api_test_plugins/nsh_test_plugin.so
 
 # 
 # vpp-nsh-plugin-devel
@@ -39,8 +39,8 @@ install -m 644 %{_plugin_prefix}/include/vpp-api/nsh.api.h %{buildroot}%{_includ
 
 %files
 %defattr(-,bin,bin)
-%{_libdir}/vpp_plugins/nsh_plugin.so
-%{_libdir}/vpp_api_test_plugins/nsh_test_plugin.so
+/usr/lib/vpp_plugins/nsh_plugin.so
+/usr/lib/vpp_api_test_plugins/nsh_test_plugin.so
 
 %files devel
 %defattr(-,bin,bin)
