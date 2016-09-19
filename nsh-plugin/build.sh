@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-
+set -xe -o pipefail
 # Figure out what system we are running on
 if [ -f /etc/lsb-release ];then
     . /etc/lsb-release
@@ -33,8 +33,16 @@ autoreconf -i -f
 cd build
 ../configure --prefix ${NSH_INSTALL_PREFIX}
 if [ $DISTRIB_ID == "CentOS" ]; then
+    echo "Start building rpms"
     make V=1 PATH=${PATH} pkg-rpm
+    echo "Finished building rpms"
 elif [ $DISTRIB_ID == "Ubuntu" ]; then
+    echo "Start building debs"
     make V=1 PATH=${PATH} pkg-deb
+    echo "Finished building debs"
+else
+    echo "Not packing.  Start make install"
+    ${SUDOCMD-sudo} make PATH=${PATH} install
+    echo "Not packing.  Finished make install"
 fi
-${SUDOCMD-sudo} make PATH=${PATH} install
+
