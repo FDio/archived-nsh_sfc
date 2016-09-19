@@ -32,5 +32,9 @@ autoreconf -i -f
 [ -d ${NSH_INSTALL_PREFIX} ] || mkdir -p ${NSH_INSTALL_PREFIX}
 cd build
 ../configure --prefix ${NSH_INSTALL_PREFIX}
-make V=1 PATH=${PATH}
+if [ $DISTRIB_ID == "CentOS" ]; then
+    make V=1 PATH=${PATH} pkg-rpm
+elif [ $DISTRIB_ID == "Ubuntu" ]; then
+    make V=1 PATH=${PATH} pkg-deb
+fi
 ${SUDOCMD-sudo} make PATH=${PATH} install
