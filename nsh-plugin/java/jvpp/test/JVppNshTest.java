@@ -14,22 +14,22 @@
  * limitations under the License.
  */
 
-package org.openvpp.jvpp.nsh.test;
+package io.fd.vpp.jvpp.nsh.test;
 
-import org.openvpp.jvpp.JVpp;
-import org.openvpp.jvpp.JVppRegistry;
-import org.openvpp.jvpp.JVppRegistryImpl;
-import org.openvpp.jvpp.VppCallbackException;
-import org.openvpp.jvpp.VppJNIConnection;
+import io.fd.vpp.jvpp.JVpp;
+import io.fd.vpp.jvpp.JVppRegistry;
+import io.fd.vpp.jvpp.JVppRegistryImpl;
+import io.fd.vpp.jvpp.VppCallbackException;
+import io.fd.vpp.jvpp.VppJNIConnection;
 
-import org.openvpp.jvpp.nsh.dto.*;
-import org.openvpp.jvpp.nsh.callback.*;
-import org.openvpp.jvpp.nsh.*;
+import io.fd.vpp.jvpp.nsh.dto.*;
+import io.fd.vpp.jvpp.nsh.callback.*;
+import io.fd.vpp.jvpp.nsh.*;
 
 /**
  * Tests the Nsh Jvpp wrapper (callback API). Run using:
  * 
- * sudo java -cp path/to/jvpp-registry-16.09-SNAPSHOT.jar:path/to/nsh-sfc-16.09-SNAPSHOT.jar org.openvpp.jvpp.nsh.test.JVppNshTest
+ * sudo java -cp path/to/jvpp-registry-16.09-SNAPSHOT.jar:path/to/nsh-sfc-16.09-SNAPSHOT.jar io.fd.vpp.jvpp.nsh.test.JVppNshTest
  */
 public class JVppNshTest {
 

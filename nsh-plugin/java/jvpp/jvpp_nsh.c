@@ -41,20 +41,20 @@
 #include <jvpp-common/jvpp_common.h>
 
 // FIXME use less fragile path
-#include "../build/java/jvpp/org_openvpp_jvpp_nsh_JVppNshImpl.h"
+#include "../build/java/jvpp/io_fd_vpp_jvpp_nsh_JVppNshImpl.h"
 #include "jvpp_nsh.h"
 #include "./build/java/jvpp/jvpp_nsh_gen.h"
 
 /*
- * Class:     org_openvpp_jvpp_nsh_JVppNshImpl
+ * Class:     io_fd_vpp_jvpp_nsh_JVppNshImpl
  * Method:    init0
  * Signature: (JI)V
  */
-JNIEXPORT void JNICALL Java_org_openvpp_jvpp_nsh_JVppNshImpl_init0
+JNIEXPORT void JNICALL Java_io_fd_vpp_jvpp_nsh_JVppNshImpl_init0
   (JNIEnv *env, jclass clazz, jobject callback, jlong queue_address, jint my_client_index) {
 	nsh_main_t * plugin_main = &nsh_main;
 	u8 * name;
-	clib_warning ("Java_org_openvpp_jvpp_nsh_JVppNshImpl_init0");
+	clib_warning ("Java_io_fd_vpp_jvpp_nsh_JVppNshImpl_init0");
 
 	plugin_main->my_client_index = my_client_index;
 	plugin_main->vl_input_queue = (unix_shared_memory_queue_t *)queue_address;
@@ -76,7 +76,7 @@ JNIEXPORT void JNICALL Java_org_openvpp_jvpp_nsh_JVppNshImpl_init0
     #undef _
 }
 
-JNIEXPORT void JNICALL Java_org_openvpp_jvpp_nsh_JVppNshImpl_close0
+JNIEXPORT void JNICALL Java_io_fd_vpp_jvpp_nsh_JVppNshImpl_close0
 (JNIEnv *env, jclass clazz) {
 	nsh_main_t * plugin_main = &nsh_main;
 

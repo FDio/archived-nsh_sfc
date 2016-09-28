@@ -49,7 +49,7 @@
                        <arg value="${runtime_classpath}"/>
                        <arg value="-d"/>
                        <arg value="${basedir}"/>
-                       <arg value="org.openvpp.jvpp.nsh.JVppNshImpl"/>
+                       <arg value="io.fd.vpp.jvpp.nsh.JVppNshImpl"/>
                    </exec>
                 </target>
             </configuration>

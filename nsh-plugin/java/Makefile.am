@@ -21,10 +21,9 @@ BUILT_SOURCES =
 bin_PROGRAMS = 
 CLEANFILES = 
 
-nobase_include_HEADERS = jvpp/org_openvpp_jvpp_nsh_JVppNshImpl.h
+nobase_include_HEADERS = jvpp/io_fd_vpp_jvpp_nsh_JVppNshImpl.h
 
 jarfile_jnsh_sfc = jnsh_sfc-$(PACKAGE_VERSION).jar
-# fixme update dirs after package in jvpp is changed from org.openvpp.jvpp to io.fd.vpp
 java_packagedir = io/fd/nsh_sfc/jvpp
 java_gendir = jvpp/src/main/java
 resourcesdir = jvpp/src/main/resources
@@ -33,15 +32,15 @@ jvpp_gen = jvpp_gen.py
 
 
 lib_LTLIBRARIES = libjvpp_nsh.la
-libjvpp_nsh_la_SOURCES = $(srcdir)/../java/nsh.api.h jvpp/jvpp_nsh.c jvpp/org_openvpp_jvpp_nsh_JVppNshImpl.h
+libjvpp_nsh_la_SOURCES = $(srcdir)/../java/nsh.api.h jvpp/jvpp_nsh.c jvpp/io_fd_vpp_jvpp_nsh_JVppNshImpl.h
 libjvpp_nsh_la_LIBADD = -lvlibmemoryclient -lvlibapi -lsvm -lvppinfra \
 	              -lpthread -lm -lrt -ljvpp_common
 libjvpp_nsh_la_LDFLAGS = -module
 libjvpp_nsh_la_CPPFLAGS = -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux -I../ -I$(srcdir)/../
 
-BUILT_SOURCES = jvpp/org_openvpp_jvpp_nsh_JVppNshImpl.h
+BUILT_SOURCES = jvpp/io_fd_vpp_jvpp_nsh_JVppNshImpl.h
 
-jvpp/org_openvpp_jvpp_nsh_JVppNshImpl.h: defs_nsh_sfc_papi.py
+jvpp/io_fd_vpp_jvpp_nsh_JVppNshImpl.h: defs_nsh_sfc_papi.py
 	dir=`pwd`;						\
 	mkdir -p $(java_gendir)/$(java_packagedir); 		\
 	cd $(java_gendir)/$(java_packagedir);			\
