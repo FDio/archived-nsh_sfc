@@ -156,6 +156,24 @@ u8 * format_nsh_header (u8 * s, va_list * args)
   return s;
 }
 
+static u8 * format_nsh_action (u8 * s, va_list * args)
+{
+  u32 nsh_action = va_arg (*args, u32);
+
+  switch (nsh_action)
+    {
+    case NSH_ACTION_SWAP:
+      return format (s, "swap");
+    case NSH_ACTION_PUSH:
+      return format (s, "push");
+    case NSH_ACTION_POP:
+      return format (s, "pop");
+    default:
+      return format (s, "unknown %d", nsh_action);
+    }
+  return s;
+}
+
 u8 * format_nsh_map (u8 * s, va_list * args)
 {
   nsh_map_t * map = va_arg (*args, nsh_map_t *);
@@ -166,6 +184,8 @@ u8 * format_nsh_map (u8 * s, va_list * args)
   s = format (s, "maps to nsp: %d nsi: %d ",
               (map->mapped_nsp_nsi>>NSH_NSP_SHIFT) & NSH_NSP_MASK,
               map->mapped_nsp_nsi & NSH_NSI_MASK);
+
+  s = format (s, " nsh_action %U\n", format_nsh_action, map->nsh_action);
 
   switch (map->next_node)
     {
@@ -263,6 +283,7 @@ int nsh_add_del_map (nsh_add_del_map_args_t *a, u32 * map_indexp)
       /* copy from arg structure */
       map->nsp_nsi = a->map.nsp_nsi;
       map->mapped_nsp_nsi = a->map.mapped_nsp_nsi;
+      map->nsh_action = a->map.nsh_action;
       map->sw_if_index = a->map.sw_if_index;
       map->next_node = a->map.next_node;
 
@@ -298,6 +319,23 @@ int nsh_add_del_map (nsh_add_del_map_args_t *a, u32 * map_indexp)
  * CLI command for NSH map
  */
 
+static uword unformat_nsh_action (unformat_input_t * input, va_list * args)
+{
+  u32 * result = va_arg (*args, u32 *);
+  u32 tmp;
+
+  if (unformat (input, "swap"))
+    *result = NSH_ACTION_SWAP;
+  if (unformat (input, "push"))
+    *result = NSH_ACTION_PUSH;
+  if (unformat (input, "pop"))
+    *result = NSH_ACTION_POP;
+  else if (unformat (input, "%d", &tmp))
+    *result = tmp;
+  else
+    return 0;
+  return 1;
+}
 
 static clib_error_t *
 nsh_add_del_map_command_fn (vlib_main_t * vm,
@@ -306,8 +344,9 @@ nsh_add_del_map_command_fn (vlib_main_t * vm,
 {
   unformat_input_t _line_input, * line_input = &_line_input;
   u8 is_add = 1;
-  u32 nsp, nsi, mapped_nsp, mapped_nsi;
+  u32 nsp, nsi, mapped_nsp, mapped_nsi, nsh_action;
   int nsp_set = 0, nsi_set = 0, mapped_nsp_set = 0, mapped_nsi_set = 0;
+  int nsh_action_set = 0;
   u32 next_node = ~0;
   u32 sw_if_index = ~0; // temporary requirement to get this moved over to NSHSFC
   nsh_add_del_map_args_t _a, * a = &_a;
@@ -329,6 +368,9 @@ nsh_add_del_map_command_fn (vlib_main_t * vm,
       mapped_nsp_set = 1;
     else if (unformat (line_input, "mapped-nsi %d", &mapped_nsi))
       mapped_nsi_set = 1;
+    else if (unformat (line_input, "nsh_action %U", unformat_nsh_action,
+                       &nsh_action))
+      nsh_action_set = 1;
     else if (unformat (line_input, "encap-gre-intf %d", &sw_if_index))
       next_node = NSH_INPUT_NEXT_ENCAP_GRE;
     else if (unformat (line_input, "encap-vxlan-gpe-intf %d", &sw_if_index))
@@ -348,6 +390,9 @@ nsh_add_del_map_command_fn (vlib_main_t * vm,
   if (mapped_nsp_set == 0 || mapped_nsi_set == 0)
     return clib_error_return (0, "mapped-nsp mapped-nsi pair required. Key: for NSH entry");
 
+  if (nsh_action_set == 0 )
+    return clib_error_return (0, "nsh_action required: swap|push|pop.");
+
   if (next_node == ~0)
     return clib_error_return (0, "must specific action: [encap-gre-intf <nn> | encap-vxlan-gpe-intf <nn> | encap-none]");
 
@@ -357,6 +402,7 @@ nsh_add_del_map_command_fn (vlib_main_t * vm,
   a->is_add = is_add;
   a->map.nsp_nsi = (nsp<< NSH_NSP_SHIFT) | nsi;
   a->map.mapped_nsp_nsi = (mapped_nsp<< NSH_NSP_SHIFT) | mapped_nsi;
+  a->map.nsh_action = nsh_action;
   a->map.sw_if_index = sw_if_index;
   a->map.next_node = next_node;
 
@@ -383,7 +429,8 @@ nsh_add_del_map_command_fn (vlib_main_t * vm,
 VLIB_CLI_COMMAND (create_nsh_map_command, static) = {
   .path = "create nsh map",
   .short_help =
-  "create nsh map nsp <nn> nsi <nn> [del] mapped-nsp <nn> mapped-nsi <nn> [encap-gre-intf <nn> | encap-vxlan-gpe-intf <nn> | encap-none]\n",
+  "create nsh map nsp <nn> nsi <nn> [del] mapped-nsp <nn> mapped-nsi <nn> nsh_action [swap|push|pop] "
+  "[encap-gre-intf <nn> | encap-vxlan-gpe-intf <nn> | encap-none]\n",
   .function = nsh_add_del_map_command_fn,
 };
 
@@ -400,6 +447,7 @@ static void vl_api_nsh_add_del_map_t_handler
   a->is_add = mp->is_add;
   a->map.nsp_nsi = ntohl(mp->nsp_nsi);
   a->map.mapped_nsp_nsi = ntohl(mp->mapped_nsp_nsi);
+  a->map.nsh_action = ntohl(mp->nsh_action);
   a->map.sw_if_index = ntohl(mp->sw_if_index);
   a->map.next_node = ntohl(mp->next_node);
 
@@ -709,6 +757,7 @@ static void send_nsh_map_details
     rmp->_vl_msg_id = ntohs((VL_API_NSH_MAP_DETAILS)+nm->msg_id_base);
     rmp->nsp_nsi = htonl(t->nsp_nsi);
     rmp->mapped_nsp_nsi = htonl(t->mapped_nsp_nsi);
+    rmp->nsh_action = htonl(t->sw_if_index);
     rmp->sw_if_index = htonl(t->sw_if_index);
     rmp->next_node = htonl(t->next_node);
 

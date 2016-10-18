@@ -33,6 +33,9 @@ typedef struct {
    */
   u32 mapped_nsp_nsi;
 
+  /* NSH Header action: swap, push and pop */
+  u32 nsh_action;
+
   /* vnet intfc sw_if_index */
   u32 sw_if_index;
 
@@ -126,5 +129,11 @@ typedef enum {
 #undef _
   NSH_INPUT_N_NEXT,
 } nsh_input_next_t;
+
+typedef enum {
+  NSH_ACTION_SWAP,
+  NSH_ACTION_PUSH,
+  NSH_ACTION_POP
+};
 
 #endif /* included_nsh_h */
