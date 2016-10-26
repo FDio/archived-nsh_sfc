@@ -757,7 +757,7 @@ static void send_nsh_map_details
     rmp->_vl_msg_id = ntohs((VL_API_NSH_MAP_DETAILS)+nm->msg_id_base);
     rmp->nsp_nsi = htonl(t->nsp_nsi);
     rmp->mapped_nsp_nsi = htonl(t->mapped_nsp_nsi);
-    rmp->nsh_action = htonl(t->sw_if_index);
+    rmp->nsh_action = htonl(t->nsh_action);
     rmp->sw_if_index = htonl(t->sw_if_index);
     rmp->next_node = htonl(t->next_node);
 
