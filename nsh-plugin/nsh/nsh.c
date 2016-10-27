@@ -858,9 +858,12 @@ nsh_input_map (vlib_main_t * vm,
 	  u32 next0 = NSH_INPUT_NEXT_DROP, next1 = NSH_INPUT_NEXT_DROP;
 	  uword * entry0, *entry1;
 	  nsh_header_t * hdr0 = 0, *hdr1 = 0;
+	  u32 header_len0 = 0, header_len1 = 0;
 	  u32 nsp_nsi0, nsp_nsi1;
 	  u32 error0, error1;
 	  nsh_map_t * map0 = 0, *map1 = 0;
+	  nsh_header_t *encap_hdr0 = 0, *encap_hdr1 = 0;
+	  u32 encap_hdr_len0 = 0, encap_hdr_len1 = 0;
 
 	  /* Prefetch next iteration. */
 	  {
@@ -890,20 +893,82 @@ nsh_input_map (vlib_main_t * vm,
 
 	  b0 = vlib_get_buffer(vm, bi0);
 	  hdr0 = vlib_buffer_get_current(b0);
+	  header_len0 = hdr0->length * 4;
 	  nsp_nsi0 = clib_net_to_host_u32(hdr0->nsp_nsi);
-	  entry0 = hash_get_mem(nm->nsh_mapping_by_key, &nsp_nsi0);
 
 	  b1 = vlib_get_buffer(vm, bi1);
 	  hdr1 = vlib_buffer_get_current(b1);
+	  header_len1 = hdr1->length * 4;
 	  nsp_nsi1 = clib_net_to_host_u32(hdr1->nsp_nsi);
-	  entry1 = hash_get_mem(nm->nsh_mapping_by_key, &nsp_nsi1);
 
+	  /* Process packet 0 */
+	  entry0 = hash_get_mem(nm->nsh_mapping_by_key, &nsp_nsi0);
 	  if (PREDICT_FALSE(entry0 == 0))
 	    {
 	      error0 = NSH_INPUT_ERROR_NO_MAPPING;
 	      goto trace0;
 	    }
 
+	  /* Entry should point to a mapping ...*/
+	  map0 = pool_elt_at_index(nm->nsh_mappings, entry0[0]);
+	  if (PREDICT_FALSE(map0 == 0))
+	    {
+	      error0 = NSH_INPUT_ERROR_NO_MAPPING;
+	      goto trace0;
+	    }
+
+	  /* set up things for next node to transmit ie which node to handle it and where */
+	  next0 = map0->next_node;
+	  vnet_buffer(b0)->sw_if_index[VLIB_TX] = map0->sw_if_index;
+
+	  if(PREDICT_FALSE(map0->nsh_action == NSH_ACTION_POP))
+	    {
+              /* Pop NSH header */
+	      vlib_buffer_advance(b0, (word)header_len0);
+	      goto trace0;
+	    }
+
+	  entry0 = hash_get_mem(nm->nsh_entry_by_key, &map0->mapped_nsp_nsi);
+	  if (PREDICT_FALSE(entry0 == 0))
+	    {
+	      error0 = NSH_INPUT_ERROR_NO_ENTRY;
+	      goto trace0;
+	    }
+
+	  encap_hdr0 = pool_elt_at_index(nm->nsh_entries, entry0[0]);
+	  encap_hdr_len0 = encap_hdr0->length * 4;
+
+          if(PREDICT_TRUE(map0->nsh_action == NSH_ACTION_SWAP))
+            {
+              /* Pop old NSH header */
+              vlib_buffer_advance(b0, (word)header_len0);
+
+              /* Push new NSH header */
+              vlib_buffer_advance(b0, -(word)encap_hdr_len0);
+              hdr0 = vlib_buffer_get_current(b0);
+              clib_memcpy(hdr0, encap_hdr0, (word)encap_hdr_len0);
+
+              goto trace0;
+           }
+
+          if(PREDICT_FALSE(map0->nsh_action == NSH_ACTION_PUSH))
+            {
+              /* Push new NSH header */
+              vlib_buffer_advance(b0, -(word)encap_hdr_len0);
+              hdr0 = vlib_buffer_get_current(b0);
+              clib_memcpy(hdr0, encap_hdr0, (word)encap_hdr_len0);
+            }
+
+        trace0: b0->error = error0 ? node->errors[error0] : 0;
+
+          if (PREDICT_FALSE(b0->flags & VLIB_BUFFER_IS_TRACED))
+            {
+              nsh_input_trace_t *tr = vlib_add_trace(vm, node, b0, sizeof(*tr));
+              tr->nsh_header = *hdr0;
+            }
+
+	  /* Process packet 1 */
+	  entry1 = hash_get_mem(nm->nsh_mapping_by_key, &nsp_nsi1);
 	  if (PREDICT_FALSE(entry1 == 0))
 	    {
 	      error1 = NSH_INPUT_ERROR_NO_MAPPING;
@@ -911,51 +976,54 @@ nsh_input_map (vlib_main_t * vm,
 	    }
 
 	  /* Entry should point to a mapping ...*/
-	  map0 = pool_elt_at_index(nm->nsh_mappings, entry0[0]);
 	  map1 = pool_elt_at_index(nm->nsh_mappings, entry1[0]);
-
-	  if (PREDICT_FALSE(map0 == 0))
-	    {
-	      error0 = NSH_INPUT_ERROR_NO_MAPPING;
-	      goto trace0;
-	    }
-
 	  if (PREDICT_FALSE(map1 == 0))
 	    {
 	      error1 = NSH_INPUT_ERROR_NO_MAPPING;
 	      goto trace1;
 	    }
 
-	  entry0 = hash_get_mem(nm->nsh_entry_by_key, &map0->mapped_nsp_nsi);
-	  entry1 = hash_get_mem(nm->nsh_entry_by_key, &map1->mapped_nsp_nsi);
+	  /* set up things for next node to transmit ie which node to handle it and where */
+	  next1 = map1->next_node;
+	  vnet_buffer(b1)->sw_if_index[VLIB_TX] = map1->sw_if_index;
 
-	  if (PREDICT_FALSE(entry0 == 0))
+	  if(PREDICT_FALSE(map1->nsh_action == NSH_ACTION_POP))
 	    {
-	      error0 = NSH_INPUT_ERROR_NO_ENTRY;
-	      goto trace0;
+          /* Pop NSH header */
+	      vlib_buffer_advance(b1, (word)header_len1);
+	      goto trace1;
 	    }
+
+	  entry1 = hash_get_mem(nm->nsh_entry_by_key, &map1->mapped_nsp_nsi);
 	  if (PREDICT_FALSE(entry1 == 0))
 	    {
 	      error1 = NSH_INPUT_ERROR_NO_ENTRY;
 	      goto trace1;
 	    }
 
-	  hdr0 = pool_elt_at_index(nm->nsh_entries, entry0[0]);
-	  hdr1 = pool_elt_at_index(nm->nsh_entries, entry1[0]);
+	  encap_hdr1 = pool_elt_at_index(nm->nsh_entries, entry1[0]);
+	  encap_hdr_len1 = encap_hdr1->length * 4;
 
-	  /* set up things for next node to transmit ie which node to handle it and where */
-	  next0 = map0->next_node;
-	  next1 = map1->next_node;
-	  vnet_buffer(b0)->sw_if_index[VLIB_TX] = map0->sw_if_index;
-	  vnet_buffer(b1)->sw_if_index[VLIB_TX] = map1->sw_if_index;
+          if(PREDICT_TRUE(map1->nsh_action == NSH_ACTION_SWAP))
+            {
+              /* Pop old NSH header */
+              vlib_buffer_advance(b1, (word)header_len1);
 
-	trace0: b0->error = error0 ? node->errors[error0] : 0;
+              /* Push new NSH header */
+              vlib_buffer_advance(b1, -(word)encap_hdr_len1);
+              hdr1 = vlib_buffer_get_current(b1);
+              clib_memcpy(hdr1, encap_hdr1, (word)encap_hdr_len1);
 
-	  if (PREDICT_FALSE(b0->flags & VLIB_BUFFER_IS_TRACED))
-	    {
-	      nsh_input_trace_t *tr = vlib_add_trace(vm, node, b0, sizeof(*tr));
-	      tr->nsh_header = *hdr0;
-	    }
+              goto trace1;
+            }
+
+          if(PREDICT_FALSE(map1->nsh_action == NSH_ACTION_PUSH))
+            {
+              /* Push new NSH header */
+              vlib_buffer_advance(b1, -(word)encap_hdr_len1);
+              hdr1 = vlib_buffer_get_current(b1);
+              clib_memcpy(hdr1, encap_hdr1, (word)encap_hdr_len1);
+            }
 
 	trace1: b1->error = error1 ? node->errors[error1] : 0;
 
@@ -977,9 +1045,12 @@ nsh_input_map (vlib_main_t * vm,
 	  u32 next0 = NSH_INPUT_NEXT_DROP;
 	  uword * entry0;
 	  nsh_header_t * hdr0 = 0;
+	  u32 header_len0 = 0;
 	  u32 nsp_nsi0;
 	  u32 error0;
 	  nsh_map_t * map0 = 0;
+	  nsh_header_t * encap_hdr0 = 0;
+	  u32 encap_hdr_len0 = 0;
 
 	  bi0 = from[0];
 	  to_next[0] = bi0;
@@ -991,6 +1062,7 @@ nsh_input_map (vlib_main_t * vm,
 
 	  b0 = vlib_get_buffer(vm, bi0);
 	  hdr0 = vlib_buffer_get_current(b0);
+	  header_len0 = hdr0->length * 4;
 	  nsp_nsi0 = clib_net_to_host_u32(hdr0->nsp_nsi);
 	  entry0 = hash_get_mem(nm->nsh_mapping_by_key, &nsp_nsi0);
 
@@ -1009,6 +1081,17 @@ nsh_input_map (vlib_main_t * vm,
 	      goto trace00;
 	    }
 
+	  /* set up things for next node to transmit ie which node to handle it and where */
+	  next0 = map0->next_node;
+	  vnet_buffer(b0)->sw_if_index[VLIB_TX] = map0->sw_if_index;
+
+	  if(PREDICT_FALSE(map0->nsh_action == NSH_ACTION_POP))
+	    {
+          /* Pop NSH header */
+	      vlib_buffer_advance(b0, (word)header_len0);
+	      goto trace00;
+	    }
+
 	  entry0 = hash_get_mem(nm->nsh_entry_by_key, &map0->mapped_nsp_nsi);
 
 	  if (PREDICT_FALSE(entry0 == 0))
@@ -1017,11 +1100,29 @@ nsh_input_map (vlib_main_t * vm,
 	      goto trace00;
 	    }
 
-	  hdr0 = pool_elt_at_index(nm->nsh_entries, entry0[0]);
+	  encap_hdr0 = pool_elt_at_index(nm->nsh_entries, entry0[0]);
+	  encap_hdr_len0 = encap_hdr0->length * 4;
 
-	  /* set up things for next node to transmit ie which node to handle it and where */
-	  next0 = map0->next_node;
-	  vnet_buffer(b0)->sw_if_index[VLIB_TX] = map0->sw_if_index;
+	  if(PREDICT_TRUE(map0->nsh_action == NSH_ACTION_SWAP))
+	    {
+              /* Pop old NSH header */
+	      vlib_buffer_advance(b0, (word)header_len0);
+
+	      /* Push new NSH header */
+	      vlib_buffer_advance(b0, -(word)encap_hdr_len0);
+	      hdr0 = vlib_buffer_get_current(b0);
+	      clib_memcpy(hdr0, encap_hdr0, (word)encap_hdr_len0);
+
+	      goto trace00;
+	    }
+
+	  if(PREDICT_TRUE(map0->nsh_action == NSH_ACTION_PUSH))
+	    {
+	      /* Push new NSH header */
+	      vlib_buffer_advance(b0, -(word)encap_hdr_len0);
+	      hdr0 = vlib_buffer_get_current(b0);
+	      clib_memcpy(hdr0, encap_hdr0, (word)encap_hdr_len0);
+	    }
 
 	trace00: b0->error = error0 ? node->errors[error0] : 0;
 
