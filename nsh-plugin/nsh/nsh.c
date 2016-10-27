@@ -945,12 +945,12 @@ nsh_input_map (vlib_main_t * vm,
 
 	  if (PREDICT_FALSE(entry0 == 0))
 	    {
-	      error0 = NSH_INPUT_ERROR_NO_MAPPING;
+	      error0 = NSH_INPUT_ERROR_NO_ENTRY;
 	      goto trace0;
 	    }
 	  if (PREDICT_FALSE(entry1 == 0))
 	    {
-	      error1 = NSH_INPUT_ERROR_NO_MAPPING;
+	      error1 = NSH_INPUT_ERROR_NO_ENTRY;
 	      goto trace1;
 	    }
 
@@ -1027,7 +1027,7 @@ nsh_input_map (vlib_main_t * vm,
 
 	  if (PREDICT_FALSE(entry0 == 0))
 	    {
-	      error0 = NSH_INPUT_ERROR_NO_MAPPING;
+	      error0 = NSH_INPUT_ERROR_NO_ENTRY;
 	      goto trace00;
 	    }
 

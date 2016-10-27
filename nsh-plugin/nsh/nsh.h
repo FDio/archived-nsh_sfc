@@ -103,6 +103,7 @@ _(c4)
 #define foreach_nsh_input_error    \
 _(MAPPED, "NSH header found and mapped") \
 _(NO_MAPPING, "no mapping for nsh key") \
+_(NO_ENTRY, "no entry for nsh key") \
 _(INVALID_NEXT_PROTOCOL, "invalid next protocol") \
 
 typedef enum {
