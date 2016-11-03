@@ -52,28 +52,33 @@
  */
 JNIEXPORT void JNICALL Java_io_fd_vpp_jvpp_nsh_JVppNshImpl_init0
   (JNIEnv *env, jclass clazz, jobject callback, jlong queue_address, jint my_client_index) {
-	nsh_main_t * plugin_main = &nsh_main;
-	u8 * name;
-	clib_warning ("Java_io_fd_vpp_jvpp_nsh_JVppNshImpl_init0");
+    nsh_main_t * plugin_main = &nsh_main;
+    u8 * name;
+    clib_warning ("Java_io_fd_vpp_jvpp_nsh_JVppNshImpl_init0");
 
-	plugin_main->my_client_index = my_client_index;
-	plugin_main->vl_input_queue = (unix_shared_memory_queue_t *)queue_address;
+    plugin_main->my_client_index = my_client_index;
+    plugin_main->vl_input_queue = (unix_shared_memory_queue_t *)queue_address;
 
     name = format (0, "nsh_%08x%c", api_version, 0);
     plugin_main->msg_id_base = vl_client_get_first_plugin_msg_id ((char *) name);
 
-	plugin_main->callbackObject = (*env)->NewGlobalRef(env, callback);
-	plugin_main->callbackClass = (jclass)(*env)->NewGlobalRef(env, (*env)->GetObjectClass(env, callback));
+    if (plugin_main->msg_id_base == (u16) ~0) {
+        jclass exClass = (*env)->FindClass(env, "java/lang/IllegalStateException");
+        (*env)->ThrowNew(env, exClass, "nsh plugin is not loaded in VPP");
+    } else {
+        plugin_main->callbackObject = (*env)->NewGlobalRef(env, callback);
+        plugin_main->callbackClass = (jclass)(*env)->NewGlobalRef(env, (*env)->GetObjectClass(env, callback));
 
-    #define _(N,n)                                  \
-        vl_msg_api_set_handlers(VL_API_##N + plugin_main->msg_id_base, #n,     \
-                vl_api_##n##_t_handler,             \
-                vl_noop_handler,                    \
-                vl_api_##n##_t_endian,              \
-                vl_api_##n##_t_print,               \
-                sizeof(vl_api_##n##_t), 1);
-        foreach_api_reply_handler;
-    #undef _
+        #define _(N,n)                                  \
+            vl_msg_api_set_handlers(VL_API_##N + plugin_main->msg_id_base, #n,     \
+    		    vl_api_##n##_t_handler,             \
+    		    vl_noop_handler,                    \
+    		    vl_api_##n##_t_endian,              \
+    		    vl_api_##n##_t_print,               \
+	    	    sizeof(vl_api_##n##_t), 1);
+            foreach_api_reply_handler;
+        #undef _
+    }
 }
 
 JNIEXPORT void JNICALL Java_io_fd_vpp_jvpp_nsh_JVppNshImpl_close0
