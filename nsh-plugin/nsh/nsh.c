@@ -98,8 +98,7 @@
   _(NSH_ADD_DEL_ENTRY, nsh_add_del_entry)	\
   _(NSH_ENTRY_DUMP, nsh_entry_dump)             \
   _(NSH_ADD_DEL_MAP, nsh_add_del_map)           \
-  _(NSH_MAP_DUMP, nsh_map_dump)                 \
-  _(NSH_CONTROL_PING, nsh_control_ping)
+  _(NSH_MAP_DUMP, nsh_map_dump)
 
 clib_error_t *
 vlib_plugin_register (vlib_main_t * vm, vnet_plugin_handoff_t * h,
@@ -117,20 +116,6 @@ vlib_plugin_register (vlib_main_t * vm, vnet_plugin_handoff_t * h,
 typedef struct {
   nsh_header_t nsh_header;
 } nsh_input_trace_t;
-
-
-static void vl_api_nsh_control_ping_t_handler
-(vl_api_nsh_control_ping_t *mp)
-{
-    nsh_main_t * nm = &nsh_main;
-    vl_api_nsh_control_ping_reply_t * rmp;
-    int rv = 0;
-
-    REPLY_MACRO2(VL_API_NSH_CONTROL_PING_REPLY,
-    ({
-	rmp->vpe_pid = ntohl (getpid());
-    }));
-}
 
 u8 * format_nsh_header (u8 * s, va_list * args)
 {

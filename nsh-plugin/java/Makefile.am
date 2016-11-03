@@ -47,7 +47,7 @@ jvpp/io_fd_vpp_jvpp_nsh_JVppNshImpl.h: defs_nsh_sfc_papi.py
 	mkdir -p $(java_gendir)/$(java_packagedir); 		\
 	cd $(java_gendir)/$(java_packagedir);			\
 	mkdir -p dto future callfacade callback notification test; 	\
-	$(jvpp_gen) -i $${dir}/defs_nsh_sfc_papi.py --plugin_name nsh --control_ping_class NshControlPing;		\
+	$(jvpp_gen) -i $${dir}/defs_nsh_sfc_papi.py --plugin_name nsh;		\
 	cd -;							\
 	mv -f $(java_gendir)/$(java_packagedir)/jvpp_nsh_gen.h jvpp/jvpp_nsh_gen.h;							\
 	cp $(srcdir)/pom.xml jvpp/;				\

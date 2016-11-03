@@ -116,25 +116,3 @@ define nsh_map_details {
     u32 sw_if_index;
     u32 next_node;
 };
-
-/** \brief Control ping from client to api server request
-    @param client_index - opaque cookie to identify the sender
-    @param context - sender context, to match reply w/ request
-*/
-define nsh_control_ping {
-    u32 client_index;
-    u32 context;
-};
-
-/** \brief Control ping from the client to the server response
-    @param client_index - opaque cookie to identify the sender
-    @param context - sender context, to match reply w/ request
-    @param retval - return code for the request
-    @param vpe_pid - the pid of the vpe, returned by the server
-*/
-define nsh_control_ping_reply {
-    u32 context;
-    i32 retval;
-    u32 client_index;
-    u32 vpe_pid;
-};
