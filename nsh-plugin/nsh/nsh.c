@@ -311,14 +311,15 @@ static uword unformat_nsh_action (unformat_input_t * input, va_list * args)
 
   if (unformat (input, "swap"))
     *result = NSH_ACTION_SWAP;
-  if (unformat (input, "push"))
+  else if (unformat (input, "push"))
     *result = NSH_ACTION_PUSH;
-  if (unformat (input, "pop"))
+  else if (unformat (input, "pop"))
     *result = NSH_ACTION_POP;
   else if (unformat (input, "%d", &tmp))
     *result = tmp;
   else
     return 0;
+
   return 1;
 }
 
