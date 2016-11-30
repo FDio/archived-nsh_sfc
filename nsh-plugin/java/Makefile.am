@@ -42,12 +42,12 @@ libjvpp_nsh_la_CPPFLAGS = -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux -I
 
 BUILT_SOURCES = jvpp/io_fd_vpp_jvpp_nsh_JVppNshImpl.h
 
-jvpp/io_fd_vpp_jvpp_nsh_JVppNshImpl.h: defs_nsh_sfc_papi.py
+jvpp/io_fd_vpp_jvpp_nsh_JVppNshImpl.h: nsh.api.json
 	dir=`pwd`;						\
 	mkdir -p $(java_gendir)/$(java_packagedir); 		\
 	cd $(java_gendir)/$(java_packagedir);			\
 	mkdir -p dto future callfacade callback notification test; 	\
-	$(jvpp_gen) -i $${dir}/defs_nsh_sfc_papi.py --plugin_name nsh;		\
+	$(jvpp_gen) -i $${dir}/nsh.api.json --plugin_name nsh;		\
 	cd -;							\
 	mv -f $(java_gendir)/$(java_packagedir)/jvpp_nsh_gen.h jvpp/jvpp_nsh_gen.h;							\
 	cp $(srcdir)/pom.xml jvpp/;				\
@@ -63,8 +63,8 @@ $(jarfile_jnsh_sfc): libjvpp_nsh.la
 	mvn $${MAVEN_SETTINGS_OPTIONS} -v;	\
 	mvn $${MAVEN_SETTINGS_OPTIONS} package;
 
-defs_nsh_sfc_papi.py:
+nsh.api.json:
 	@echo "  jNsh_sfc API"; \
-        vppapigen --input $(api_file) --python defs_nsh_sfc_papi.py;
+        vppapigen --input $(api_file) --json nsh.api.json;
         
 all-local: $(jarfile_jnsh_sfc)
