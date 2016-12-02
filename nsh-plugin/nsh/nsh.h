@@ -100,6 +100,8 @@ nsh_main_t nsh_main;
 
 vlib_node_t * vxlan4_input_node = 0;
 vlib_node_t * vxlan6_input_node = 0;
+vlib_node_t * ip4_classify_node = 0;
+vlib_node_t * ip6_classify_node = 0;
 
 u8 * format_nsh_input_map_trace (u8 * s, va_list * args);
 u8 * format_nsh_header_with_length (u8 * s, va_list * args);
@@ -161,12 +163,13 @@ typedef enum {
 typedef enum {
   NSH_ACTION_SWAP,
   NSH_ACTION_PUSH,
-  NSH_ACTION_POP
-};
+  NSH_ACTION_POP,
+} nsh_action_type;
 
 typedef enum {
   NSH_INPUT_TYPE,
-  NSH_PROXY_TYPE
-};
+  NSH_PROXY_TYPE,
+  NSH_CLASSIFIER_TYPE,
+} nsh_entity_type;
 
 #endif /* included_nsh_h */

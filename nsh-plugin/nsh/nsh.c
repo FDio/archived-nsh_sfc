@@ -998,6 +998,10 @@ nsh_input_map (vlib_main_t * vm,
               nsp_nsi0 = clib_net_to_host_u32(hdr0->nsp_nsi);
               header_len0 = hdr0->length * 4;
             }
+          else if(node_type == NSH_CLASSIFIER_TYPE)
+            {
+              nsp_nsi0 = vnet_buffer(b0)->l2_classify.opaque_index;
+            }
           else
 	    {
 	      memset (&key0, 0, sizeof(key0));
@@ -1029,6 +1033,10 @@ nsh_input_map (vlib_main_t * vm,
 	      nsp_nsi1 = clib_net_to_host_u32(hdr1->nsp_nsi);
 	      header_len1 = hdr1->length * 4;
 	    }
+          else if(node_type == NSH_CLASSIFIER_TYPE)
+            {
+              nsp_nsi1 = vnet_buffer(b1)->l2_classify.opaque_index;
+            }
           else
 	    {
 	      memset (&key1, 0, sizeof(key1));
@@ -1223,6 +1231,10 @@ nsh_input_map (vlib_main_t * vm,
               nsp_nsi0 = clib_net_to_host_u32(hdr0->nsp_nsi);
               header_len0 = hdr0->length * 4;
             }
+          else if(node_type == NSH_CLASSIFIER_TYPE)
+            {
+              nsp_nsi0 = vnet_buffer(b0)->l2_classify.opaque_index;
+            }
           else
 	    {
 	      memset (&key0, 0, sizeof(key0));
@@ -1359,6 +1371,24 @@ nsh_proxy (vlib_main_t * vm, vlib_node_runtime_t * node,
   return nsh_input_map (vm, node, from_frame, NSH_PROXY_TYPE);
 }
 
+/**
+ * @brief Graph processing dispatch function for NSH Classifier
+ *
+ * @node nsh_classifier
+ * @param *vm
+ * @param *node
+ * @param *from_frame
+ *
+ * @return from_frame->n_vectors
+ *
+ */
+static uword
+nsh_classifier (vlib_main_t * vm, vlib_node_runtime_t * node,
+                  vlib_frame_t * from_frame)
+{
+  return nsh_input_map (vm, node, from_frame, NSH_CLASSIFIER_TYPE);
+}
+
 static char * nsh_node_error_strings[] = {
 #define _(sym,string) string,
   foreach_nsh_node_error
@@ -1410,6 +1440,29 @@ VLIB_REGISTER_NODE (nsh_proxy_node) = {
 };
 
 VLIB_NODE_FUNCTION_MULTIARCH (nsh_proxy_node, nsh_proxy);
+
+/* register nsh-classifier node */
+VLIB_REGISTER_NODE (nsh_classifier_node) = {
+  .function = nsh_classifier,
+  .name = "nsh-classifier",
+  .vector_size = sizeof (u32),
+  .format_trace = format_nsh_node_map_trace,
+  .format_buffer = format_nsh_header_with_length,
+  .type = VLIB_NODE_TYPE_INTERNAL,
+
+  .n_errors = ARRAY_LEN(nsh_node_error_strings),
+  .error_strings = nsh_node_error_strings,
+
+  .n_next_nodes = NSH_NODE_N_NEXT,
+
+  .next_nodes = {
+#define _(s,n) [NSH_NODE_NEXT_##s] = n,
+    foreach_nsh_node_next
+#undef _
+  },
+};
+
+VLIB_NODE_FUNCTION_MULTIARCH (nsh_classifier_node, nsh_classifier);
 
 clib_error_t *nsh_init (vlib_main_t *vm)
 {
@@ -1470,6 +1523,15 @@ clib_error_t *nsh_init (vlib_main_t *vm)
   vxlan6_input_node = vlib_get_node_by_name (vm, (u8 *)"vxlan6-input");
   ASSERT(vxlan6_input_node);
   vlib_node_add_next (vm, vxlan6_input_node->index, nsh_proxy_node.index);
+
+  /* Add NSH-Classifier support */
+  ip4_classify_node = vlib_get_node_by_name (vm, (u8 *)"ip4-classify");
+  ASSERT(ip4_classify_node);
+  vlib_node_add_next (vm, ip4_classify_node->index, nsh_classifier_node.index);
+
+  ip6_classify_node = vlib_get_node_by_name (vm, (u8 *)"ip6-classify");
+  ASSERT(ip6_classify_node);
+  vlib_node_add_next (vm, ip6_classify_node->index, nsh_classifier_node.index);
 
   vec_free(name);
 
