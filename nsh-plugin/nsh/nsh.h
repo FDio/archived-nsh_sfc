@@ -98,11 +98,6 @@ typedef struct {
 
 nsh_main_t nsh_main;
 
-vlib_node_t * vxlan4_input_node = 0;
-vlib_node_t * vxlan6_input_node = 0;
-vlib_node_t * ip4_classify_node = 0;
-vlib_node_t * ip6_classify_node = 0;
-
 u8 * format_nsh_input_map_trace (u8 * s, va_list * args);
 u8 * format_nsh_header_with_length (u8 * s, va_list * args);
 

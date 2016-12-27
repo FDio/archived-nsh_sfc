@@ -18,6 +18,9 @@
 #include <vnet/vnet.h>
 #include <vnet/plugin/plugin.h>
 #include <nsh/nsh.h>
+#include <vnet/gre/gre.h>
+#include <vnet/vxlan/vxlan.h>
+#include <vnet/vxlan-gpe/vxlan_gpe.h>
 
 #include <vlibapi/api.h>
 #include <vlibmemory/api.h>
@@ -1468,9 +1471,6 @@ clib_error_t *nsh_init (vlib_main_t *vm)
 {
   nsh_main_t *nm = &nsh_main;
   clib_error_t * error = 0;
-  vlib_node_t * vxlan4_gpe_input_node = 0;
-  vlib_node_t * vxlan6_gpe_input_node = 0;
-  vlib_node_t * gre_input_node = 0;
   u8 * name;
 
   /* Init the main structures from VPP */
@@ -1499,39 +1499,23 @@ clib_error_t *nsh_init (vlib_main_t *vm)
   error = nsh_plugin_api_hookup (vm);
 
   /* Add dispositions to nodes that feed nsh-input */
-  vxlan4_gpe_input_node = vlib_get_node_by_name (vm, (u8 *)"vxlan4-gpe-input");
-  ASSERT(vxlan4_gpe_input_node);
   //alagalah - validate we don't really need to use the node value
-  vlib_node_add_next (vm, vxlan4_gpe_input_node->index, nsh_input_node.index);
-  vlib_node_add_next (vm, vxlan4_gpe_input_node->index, nsh_proxy_node.index);
+  vlib_node_add_next (vm, vxlan4_gpe_input_node.index, nsh_input_node.index);
+  vlib_node_add_next (vm, vxlan4_gpe_input_node.index, nsh_proxy_node.index);
 
-  vxlan6_gpe_input_node = vlib_get_node_by_name (vm, (u8 *)"vxlan6-gpe-input");
-  ASSERT(vxlan6_gpe_input_node);
-  vlib_node_add_next (vm, vxlan6_gpe_input_node->index, nsh_input_node.index);
-  vlib_node_add_next (vm, vxlan6_gpe_input_node->index, nsh_proxy_node.index);
+  vlib_node_add_next (vm, vxlan6_gpe_input_node.index, nsh_input_node.index);
+  vlib_node_add_next (vm, vxlan6_gpe_input_node.index, nsh_proxy_node.index);
 
-  gre_input_node = vlib_get_node_by_name (vm, (u8 *)"gre-input");
-  ASSERT(gre_input_node);
-  vlib_node_add_next (vm, gre_input_node->index, nsh_input_node.index);
-  vlib_node_add_next (vm, gre_input_node->index, nsh_proxy_node.index);
+  vlib_node_add_next (vm, gre_input_node.index, nsh_input_node.index);
+  vlib_node_add_next (vm, gre_input_node.index, nsh_proxy_node.index);
 
   /* Add NSH-Proxy support */
-  vxlan4_input_node = vlib_get_node_by_name (vm, (u8 *)"vxlan4-input");
-  ASSERT(vxlan4_input_node);
-  vlib_node_add_next (vm, vxlan4_input_node->index, nsh_proxy_node.index);
-
-  vxlan6_input_node = vlib_get_node_by_name (vm, (u8 *)"vxlan6-input");
-  ASSERT(vxlan6_input_node);
-  vlib_node_add_next (vm, vxlan6_input_node->index, nsh_proxy_node.index);
+  vlib_node_add_next (vm, vxlan4_input_node.index, nsh_proxy_node.index);
+  vlib_node_add_next (vm, vxlan6_input_node.index, nsh_proxy_node.index);
 
   /* Add NSH-Classifier support */
-  ip4_classify_node = vlib_get_node_by_name (vm, (u8 *)"ip4-classify");
-  ASSERT(ip4_classify_node);
-  vlib_node_add_next (vm, ip4_classify_node->index, nsh_classifier_node.index);
-
-  ip6_classify_node = vlib_get_node_by_name (vm, (u8 *)"ip6-classify");
-  ASSERT(ip6_classify_node);
-  vlib_node_add_next (vm, ip6_classify_node->index, nsh_classifier_node.index);
+  vlib_node_add_next (vm, ip4_classify_node.index, nsh_classifier_node.index);
+  vlib_node_add_next (vm, ip6_classify_node.index, nsh_classifier_node.index);
 
   vec_free(name);
 
