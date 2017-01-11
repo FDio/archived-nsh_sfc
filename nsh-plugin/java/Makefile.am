@@ -36,7 +36,8 @@ lib_LTLIBRARIES = libjvpp_nsh.la
 libjvpp_nsh_la_SOURCES = $(srcdir)/../java/nsh.api.h jvpp/jvpp_nsh.c jvpp/io_fd_vpp_jvpp_nsh_JVppNshImpl.h
 
 libjvpp_nsh_la_LIBADD = -lvlibmemoryclient -lvlibapi -lsvm -lvppinfra \
-	              -lpthread -lm -lrt -ljvpp_common
+	              -lpthread -lm -lrt
+libjvpp_nsh_la_LIBAD = libjvpp_common.la
 libjvpp_nsh_la_LDFLAGS = -module
 libjvpp_nsh_la_CPPFLAGS = -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux -I../ -I$(srcdir)/../
 
@@ -47,9 +48,10 @@ jvpp/io_fd_vpp_jvpp_nsh_JVppNshImpl.h: nsh.api.json
 	mkdir -p $(java_gendir)/$(java_packagedir); 		\
 	cd $(java_gendir)/$(java_packagedir);			\
 	mkdir -p dto future callfacade callback notification test; 	\
-	$(jvpp_gen) -i $${dir}/nsh.api.json --plugin_name nsh;		\
 	cd -;							\
-	mv -f $(java_gendir)/$(java_packagedir)/jvpp_nsh_gen.h jvpp/jvpp_nsh_gen.h;							\
+	$(jvpp_gen) -i nsh.api.json --plugin_name nsh --root_dir $(java_gendir)/$(java_packagedir)  > /dev/null;  \
+	mv -f $(java_gendir)/$(java_packagedir)/target/io/fd/vpp/jvpp/nsh/ $(java_gendir)/$(java_packagedir)/;    \
+	mv -f $(java_gendir)/$(java_packagedir)/jvpp_nsh_gen.h jvpp/jvpp_nsh_gen.h;			\
 	cp $(srcdir)/pom.xml jvpp/;				\
 	cp $(srcdir)/jvpp/test/*.java $(java_gendir)/$(java_packagedir)/test/;				\
 	cd jvpp;				\
@@ -65,6 +67,7 @@ $(jarfile_jnsh_sfc): libjvpp_nsh.la
 
 nsh.api.json:
 	@echo "  jNsh_sfc API"; \
-        vppapigen --input $(api_file) --json nsh.api.json;
-        
+	$(CC) $(CPPFLAGS) -E -P -C -x c $^ \
+	| vppapigen --input $(api_file) --json $@
+
 all-local: $(jarfile_jnsh_sfc)
