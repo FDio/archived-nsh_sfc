@@ -21,6 +21,7 @@
 #include <vnet/gre/gre.h>
 #include <vnet/vxlan/vxlan.h>
 #include <vnet/vxlan-gpe/vxlan_gpe.h>
+#include <vnet/l2/l2_classify.h>
 
 #include <vlibapi/api.h>
 #include <vlibmemory/api.h>
@@ -1518,6 +1519,7 @@ clib_error_t *nsh_init (vlib_main_t *vm)
   /* Add NSH-Classifier support */
   vlib_node_add_next (vm, ip4_classify_node.index, nsh_classifier_node.index);
   vlib_node_add_next (vm, ip6_classify_node.index, nsh_classifier_node.index);
+  vlib_node_add_next (vm, l2_input_classify_node.index, nsh_classifier_node.index);
 
   vec_free(name);
 
