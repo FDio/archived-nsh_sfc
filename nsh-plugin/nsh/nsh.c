@@ -57,7 +57,6 @@
  * rmp - pointer to reply message type
  * rv - return value
  */
-
 #define REPLY_MACRO(t)                                          \
   do {								\
     unix_shared_memory_queue_t * q =                            \
