@@ -109,30 +109,202 @@ VLIB_PLUGIN_REGISTER () = {
 };
 /* *INDENT-ON* */
 
+ /* Uses network order's class and type to register */
+int
+nsh_md2_register_option (u16 class,
+                      u8 type,
+                      u8 option_size,
+                      int add_options (u8 * opt,
+                                       u8 * opt_size),
+                      int options(vlib_buffer_t * b,
+                                  nsh_tlv_header_t * opt),
+                      int swap_options (vlib_buffer_t * b,
+				        nsh_tlv_header_t * old_opt,
+		                        nsh_tlv_header_t * new_opt),
+                      int pop_options (vlib_buffer_t * b,
+                                       nsh_tlv_header_t * opt),
+                      u8 * trace (u8 * s,
+                                  nsh_tlv_header_t * opt))
+{
+  nsh_main_t *nm = &nsh_main;
+  nsh_option_map_by_key_t key, *key_copy;
+  uword *p;
+  nsh_option_map_t *nsh_option;
+
+  key.class = class;
+  key.type = type;
+  key.pad = 0;
+
+  p = hash_get_mem(nm->nsh_option_map_by_key, &key);
+  /* Already registered */
+  if (p != 0)
+    {
+      return (-1);
+    }
+
+  pool_get_aligned (nm->nsh_option_mappings, nsh_option, CLIB_CACHE_LINE_BYTES);
+  memset (nsh_option, 0, sizeof (*nsh_option));
+  nsh_option->option_id = nsh_option - nm->nsh_option_mappings;
+
+  key_copy = clib_mem_alloc (sizeof (*key_copy));
+  clib_memcpy (key_copy, &key, sizeof (*key_copy));
+  hash_set_mem (nm->nsh_option_map_by_key, key_copy,
+	        nsh_option - nm->nsh_option_mappings);
+
+  if(option_size > (MAX_NSH_OPTION_LEN + sizeof(nsh_tlv_header_t)) )
+    {
+      return (-1);
+    }
+  nm->options_size[nsh_option->option_id] = option_size;
+  nm->add_options[nsh_option->option_id] = add_options;
+  nm->options[nsh_option->option_id] = options;
+  nm->swap_options[nsh_option->option_id] = swap_options;
+  nm->pop_options[nsh_option->option_id] = pop_options;
+  nm->trace[nsh_option->option_id] = trace;
+
+  return (0);
+}
+
+/* Uses network order's class and type to lookup */
+nsh_option_map_t *
+nsh_md2_lookup_option (u16 class, u8 type)
+{
+  nsh_main_t *nm = &nsh_main;
+  nsh_option_map_by_key_t key;
+  uword *p;
+
+  key.class = class;
+  key.type = type;
+  key.pad = 0;
+
+  p = hash_get_mem(nm->nsh_option_map_by_key, &key);
+  /* not registered */
+  if (p == 0)
+    {
+      return NULL;
+    }
+
+  return pool_elt_at_index(nm->nsh_option_mappings, p[0]);
+
+}
+
+/* Uses network order's class and type to unregister */
+int
+nsh_md2_unregister_option (u16 class,
+			u8 type,
+			int options(vlib_buffer_t * b,
+				   nsh_tlv_header_t * opt),
+			u8 * trace (u8 * s,
+				   nsh_tlv_header_t * opt))
+{
+  nsh_main_t *nm = &nsh_main;
+  nsh_option_map_by_key_t key, *key_copy;
+  uword *p;
+  hash_pair_t *hp;
+  nsh_option_map_t *nsh_option;
+
+  key.class = class;
+  key.type = type;
+  key.pad = 0;
+
+  p = hash_get_mem(nm->nsh_option_map_by_key, &key);
+  /* not registered */
+  if (p == 0)
+    {
+      return (-1);
+    }
+
+  nsh_option = pool_elt_at_index(nm->nsh_option_mappings, p[0]);
+  nm->options[nsh_option->option_id] = NULL;
+  nm->add_options[nsh_option->option_id] = NULL;
+  nm->pop_options[nsh_option->option_id] = NULL;
+  nm->trace[nsh_option->option_id] = NULL;
+
+  hp = hash_get_pair (nm->nsh_option_map_by_key, &key);
+  key_copy = (void *)(hp->key);
+  hash_unset_mem (nm->nsh_option_map_by_key, &key_copy);
+  clib_mem_free (key_copy);
+
+  pool_put (nm->nsh_option_mappings, nsh_option);
+
+  return (0);
+}
+
 typedef struct {
-  nsh_header_t nsh_header;
+   u8 trace_data[256];
 } nsh_input_trace_t;
 
+/* format from network order */
 u8 * format_nsh_header (u8 * s, va_list * args)
 {
-  nsh_header_t * nsh = va_arg (*args, nsh_header_t *);
+  nsh_main_t *nm = &nsh_main;
+  nsh_md2_data_t *opt0;
+  nsh_md2_data_t *limit0;
+  nsh_option_map_t *nsh_option;
+  u8 option_len = 0;
 
-  s = format (s, "nsh ver %d ", (nsh->ver_o_c>>6));
-  if (nsh->ver_o_c & NSH_O_BIT)
+  u8 * header = va_arg (*args, u8 *);
+  nsh_base_header_t * nsh_base = (nsh_base_header_t *) header ;
+  nsh_md1_data_t * nsh_md1 = (nsh_md1_data_t *)(nsh_base + 1);
+  nsh_md2_data_t * nsh_md2 = (nsh_md2_data_t *)(nsh_base + 1);
+  opt0 = (nsh_md2_data_t *)nsh_md2;
+  limit0 = (nsh_md2_data_t *) ((u8 *) nsh_md2 +
+                              (nsh_base->length*4-sizeof(nsh_base_header_t)) );
+
+  s = format (s, "nsh ver %d ", (nsh_base->ver_o_c>>6));
+  if (nsh_base->ver_o_c & NSH_O_BIT)
     s = format (s, "O-set ");
 
-  if (nsh->ver_o_c & NSH_C_BIT)
+  if (nsh_base->ver_o_c & NSH_C_BIT)
     s = format (s, "C-set ");
 
   s = format (s, "len %d (%d bytes) md_type %d next_protocol %d\n",
-              nsh->length, nsh->length * 4, nsh->md_type, nsh->next_protocol);
+	      nsh_base->length, nsh_base->length * 4,
+	      nsh_base->md_type, nsh_base->next_protocol);
 
   s = format (s, "  service path %d service index %d\n",
-              (nsh->nsp_nsi>>NSH_NSP_SHIFT) & NSH_NSP_MASK,
-              nsh->nsp_nsi & NSH_NSI_MASK);
+        (clib_net_to_host_u32(nsh_base->nsp_nsi)>>NSH_NSP_SHIFT) & NSH_NSP_MASK,
+	 clib_net_to_host_u32(nsh_base->nsp_nsi) & NSH_NSI_MASK);
 
-  s = format (s, "  c1 %d c2 %d c3 %d c4 %d\n",
-              nsh->c1, nsh->c2, nsh->c3, nsh->c4);
+  if (nsh_base->md_type == 1 )
+    {
+      s = format (s, "  c1 %d c2 %d c3 %d c4 %d\n",
+		  clib_net_to_host_u32(nsh_md1->c1),
+		  clib_net_to_host_u32(nsh_md1->c2),
+		  clib_net_to_host_u32(nsh_md1->c3),
+		  clib_net_to_host_u32(nsh_md1->c4) );
+    }
+  else if (nsh_base->md_type == 2 )
+    {
+      s = format (s, "  Supported TLVs: \n");
+
+      /* Scan the set of variable metadata, network order */
+      while (opt0 < limit0)
+        {
+          nsh_option = nsh_md2_lookup_option(opt0->class, opt0->type);
+          if( nsh_option != NULL)
+    	    {
+    	      if (nm->trace[nsh_option->option_id] != NULL)
+    	        {
+    	          s = (*nm->trace[nsh_option->option_id]) (s, opt0);
+    	        }
+    	      else
+    	        {
+    	          s = format (s, "\n    untraced option %d length %d", opt0->type,
+    			  opt0->length);
+    	        }
+    	    }
+          else
+            {
+              s = format (s, "\n    unrecognized option %d length %d", opt0->type,
+                          opt0->length);
+            }
+
+          /* round to 4-byte */
+          option_len = ( (opt0->length+3)>>2 ) << 2;
+          opt0 = (nsh_md2_data_t *) (((u8 *) opt0) + sizeof (nsh_md2_data_t) + option_len);
+        }
+    }
 
   return s;
 }
@@ -195,44 +367,15 @@ u8 * format_nsh_map (u8 * s, va_list * args)
 	s = format (s, "encap-none");
 	break;
       }
+    case NSH_NODE_NEXT_ENCAP_LISP_GPE:
+      {
+       s = format (s, "encapped by LISP GPE intf: %d", map->sw_if_index);
+       break;
+      }
     default:
       s = format (s, "only GRE and VXLANGPE support in this rev");
     }
 
-  return s;
-}
-
-u8 * format_nsh_header_with_length (u8 * s, va_list * args)
-{
-  nsh_header_t * h = va_arg (*args, nsh_header_t *);
-  u32 max_header_bytes = va_arg (*args, u32);
-  u32 tmp, header_bytes;
-
-  header_bytes = sizeof (h[0]);
-  if (max_header_bytes != 0 && header_bytes > max_header_bytes)
-    return format (s, "nsh header truncated");
-
-  tmp = clib_net_to_host_u32 (h->nsp_nsi);
-  s = format (s, "  nsp %d nsi %d ",
-              (tmp>>NSH_NSP_SHIFT) & NSH_NSP_MASK,
-              tmp & NSH_NSI_MASK);
-
-  s = format (s, "c1 %u c2 %u c3 %u c4 %u",
-              clib_net_to_host_u32 (h->c1),
-              clib_net_to_host_u32 (h->c2),
-              clib_net_to_host_u32 (h->c3),
-              clib_net_to_host_u32 (h->c4));
-
-  s = format (s, "ver %d ", h->ver_o_c>>6);
-
-  if (h->ver_o_c & NSH_O_BIT)
-    s = format (s, "O-set ");
-
-  if (h->ver_o_c & NSH_C_BIT)
-    s = format (s, "C-set ");
-
-  s = format (s, "len %d (%d bytes) md_type %d next_protocol %d\n",
-              h->length, h->length * 4, h->md_type, h->next_protocol);
   return s;
 }
 
@@ -243,8 +386,7 @@ u8 * format_nsh_node_map_trace (u8 * s, va_list * args)
   nsh_input_trace_t * t
     = va_arg (*args, nsh_input_trace_t *);
 
-  s = format (s, "\n  %U", format_nsh_header, &t->nsh_header,
-              (u32) sizeof (t->nsh_header) );
+  s = format (s, "\n  %U", format_nsh_header, &(t->trace_data) );
 
   return s;
 }
@@ -263,7 +405,8 @@ int nsh_add_del_map (nsh_add_del_map_args_t *a, u32 * map_indexp)
   hash_pair_t *hp;
   u32 map_index = ~0;
 
-  key = a->map.nsp_nsi;
+  /* net order, so data plane could use nsh header to lookup directly */
+  key = clib_host_to_net_u32(a->map.nsp_nsi);
 
   entry = hash_get_mem (nm->nsh_mapping_by_key, &key);
 
@@ -347,7 +490,8 @@ int nsh_add_del_proxy_session (nsh_add_del_map_args_t *a)
 	return -1;
 
       nsi = nsi -1;
-      proxy->nsp_nsi = (nsp<< NSH_NSP_SHIFT) | nsi;
+      /* net order, so could use it to lookup nsh map table directly */
+      proxy->nsp_nsi = clib_host_to_net_u32((nsp<< NSH_NSP_SHIFT) | nsi);
 
       key_copy = clib_mem_alloc (sizeof (*key_copy));
       clib_memcpy (key_copy, &key, sizeof (*key_copy));
@@ -433,6 +577,8 @@ nsh_add_del_map_command_fn (vlib_main_t * vm,
       next_node = NSH_NODE_NEXT_ENCAP_GRE;
     else if (unformat (line_input, "encap-vxlan-gpe-intf %d", &sw_if_index))
       next_node = NSH_NODE_NEXT_ENCAP_VXLANGPE;
+    else if (unformat (line_input, "encap-lisp-gpe-intf %d", &sw_if_index))
+      next_node = NSH_NODE_NEXT_ENCAP_LISP_GPE;
     else if (unformat (line_input, "encap-vxlan4-intf %d", &sw_if_index))
       next_node = NSH_NODE_NEXT_ENCAP_VXLAN4;
     else if (unformat (line_input, "encap-vxlan6-intf %d", &sw_if_index))
@@ -456,7 +602,7 @@ nsh_add_del_map_command_fn (vlib_main_t * vm,
     return clib_error_return (0, "nsh_action required: swap|push|pop.");
 
   if (next_node == ~0)
-    return clib_error_return (0, "must specific action: [encap-gre-intf <nn> | encap-vxlan-gpe-intf <nn> | encap-none]");
+    return clib_error_return (0, "must specific action: [encap-gre-intf <nn> | encap-vxlan-gpe-intf <nn> | encap-lisp-gpe-intf <nn> | encap-none]");
 
   memset (a, 0, sizeof (*a));
 
@@ -513,7 +659,7 @@ VLIB_CLI_COMMAND (create_nsh_map_command, static) = {
   .path = "create nsh map",
   .short_help =
   "create nsh map nsp <nn> nsi <nn> [del] mapped-nsp <nn> mapped-nsi <nn> nsh_action [swap|push|pop] "
-  "[encap-gre-intf <nn> | encap-vxlan-gpe-intf <nn> | encap-none]\n",
+  "[encap-gre-intf <nn> | encap-vxlan-gpe-intf <nn> | encap-lisp-gpe-intf <nn> | encap-none]\n",
   .function = nsh_add_del_map_command_fn,
 };
 
@@ -575,56 +721,176 @@ VLIB_CLI_COMMAND (show_nsh_map_command, static) = {
   .function = show_nsh_map_command_fn,
 };
 
+int nsh_header_rewrite(nsh_entry_t *nsh_entry)
+{
+  u8 *rw = 0;
+  int len = 0;
+  nsh_base_header_t * nsh_base;
+  nsh_md1_data_t * nsh_md1;
+  nsh_main_t *nm = &nsh_main;
+  nsh_md2_data_t *opt0;
+  nsh_md2_data_t *limit0;
+  nsh_md2_data_t *nsh_md2;
+  nsh_option_map_t _nsh_option, *nsh_option=&_nsh_option;
+  u8 old_option_size = 0;
+  u8 new_option_size = 0;
+
+  vec_free(nsh_entry->rewrite);
+  if (nsh_entry->nsh_base.md_type == 1)
+    {
+      len = sizeof(nsh_base_header_t) + sizeof(nsh_md1_data_t);
+    }
+  else if (nsh_entry->nsh_base.md_type == 2)
+    {
+      /* set to maxim, maybe dataplane will add more TLVs */
+      len = MAX_NSH_HEADER_LEN;
+    }
+  vec_validate_aligned (rw, len-1, CLIB_CACHE_LINE_BYTES);
+  memset (rw, 0, len);
+
+  nsh_base = (nsh_base_header_t *) rw;
+  nsh_base->ver_o_c = nsh_entry->nsh_base.ver_o_c;
+  nsh_base->md_type = nsh_entry->nsh_base.md_type;
+  nsh_base->next_protocol = nsh_entry->nsh_base.next_protocol;
+  nsh_base->nsp_nsi = clib_host_to_net_u32(nsh_entry->nsh_base.nsp_nsi);
+
+  if (nsh_base->md_type == 1)
+    {
+      nsh_md1 =(nsh_md1_data_t *)(rw + sizeof(nsh_base_header_t));
+      nsh_md1->c1 = clib_host_to_net_u32(nsh_entry->md.md1_data.c1);
+      nsh_md1->c2 = clib_host_to_net_u32(nsh_entry->md.md1_data.c2);
+      nsh_md1->c3 = clib_host_to_net_u32(nsh_entry->md.md1_data.c3);
+      nsh_md1->c4 = clib_host_to_net_u32(nsh_entry->md.md1_data.c4);
+      nsh_entry->rewrite_size = 24;
+    }
+  else if (nsh_base->md_type == 2)
+    {
+      opt0 = (nsh_md2_data_t *)(nsh_entry->tlvs_data);
+      limit0 = (nsh_md2_data_t *) ((u8 *) opt0 + nsh_entry->tlvs_len);
+
+      nsh_md2 = (nsh_md2_data_t *)(rw + sizeof(nsh_base_header_t));
+      nsh_entry->rewrite_size = sizeof(nsh_base_header_t);
+
+      while(opt0 < limit0)
+	{
+          old_option_size = sizeof (nsh_md2_data_t) + opt0->length;
+          /* round to 4-byte */
+          old_option_size = ( (old_option_size+3)>>2 ) << 2;
+
+          nsh_option = nsh_md2_lookup_option(opt0->class, opt0->type);
+          if( nsh_option == NULL)
+            {
+              goto next_tlv_md2;
+            }
+
+          if(nm->add_options[nsh_option->option_id] != NULL)
+            {
+              if (0 != nm->add_options[nsh_option->option_id] (
+        	  (u8 *)nsh_md2, &new_option_size ))
+                {
+                  goto next_tlv_md2;
+                }
+
+              /* round to 4-byte */
+              new_option_size = ( (new_option_size+3)>>2 ) << 2;
+
+              nsh_entry->rewrite_size += new_option_size;
+              nsh_md2 = (nsh_md2_data_t *) (((u8 *) nsh_md2) + new_option_size);
+              opt0 = (nsh_md2_data_t *) (((u8 *) opt0) + old_option_size);
+            }
+          else
+            {
+next_tlv_md2:
+              opt0 = (nsh_md2_data_t *) (((u8 *) opt0) + old_option_size);
+            }
+
+	}
+    }
+
+  nsh_entry->rewrite = rw;
+  nsh_base->length = nsh_entry->rewrite_size >> 2;
+
+  return 0;
+}
+
+
 /**
  * Action function for adding an NSH entry
+ * nsh_add_del_entry_args_t *a: host order
  */
 
 int nsh_add_del_entry (nsh_add_del_entry_args_t *a, u32 * entry_indexp)
 {
   nsh_main_t * nm = &nsh_main;
-  nsh_header_t *hdr = 0;
+  nsh_entry_t *nsh_entry = 0;
   u32 key, *key_copy;
-  uword * entry;
+  uword * entry_id;
   hash_pair_t *hp;
   u32 entry_index = ~0;
+  u8 tlvs_len = 0;
+  u8 * data = 0;
 
-  key = a->nsh.nsp_nsi;
+  /* host order, because nsh map table stores nsp_nsi in host order */
+  key = a->nsh_entry.nsh_base.nsp_nsi;
 
-  entry = hash_get_mem (nm->nsh_entry_by_key, &key);
+  entry_id = hash_get_mem (nm->nsh_entry_by_key, &key);
 
   if (a->is_add)
     {
       /* adding an entry, must not already exist */
-      if (entry)
+      if (entry_id)
         return -1; // TODO VNET_API_ERROR_INVALID_VALUE;
 
-      pool_get_aligned (nm->nsh_entries, hdr, CLIB_CACHE_LINE_BYTES);
-      memset (hdr, 0, sizeof (*hdr));
+      pool_get_aligned (nm->nsh_entries, nsh_entry, CLIB_CACHE_LINE_BYTES);
+      memset (nsh_entry, 0, sizeof (*nsh_entry));
 
       /* copy from arg structure */
-#define _(x) hdr->x = a->nsh.x;
-      foreach_copy_nshhdr_field;
+#define _(x) nsh_entry->nsh_base.x = a->nsh_entry.nsh_base.x;
+      foreach_copy_nsh_base_hdr_field;
 #undef _
+
+      if (a->nsh_entry.nsh_base.md_type == 1)
+        {
+          nsh_entry->md.md1_data.c1 = a->nsh_entry.md.md1_data.c1;
+          nsh_entry->md.md1_data.c2 = a->nsh_entry.md.md1_data.c2;
+          nsh_entry->md.md1_data.c3 = a->nsh_entry.md.md1_data.c3;
+          nsh_entry->md.md1_data.c4 = a->nsh_entry.md.md1_data.c4;
+        }
+      else if (a->nsh_entry.nsh_base.md_type == 2)
+        {
+	  vec_free(nsh_entry->tlvs_data);
+	  tlvs_len = a->nsh_entry.tlvs_len;
+          vec_validate_aligned(data, tlvs_len-1, CLIB_CACHE_LINE_BYTES);
+
+          clib_memcpy(data, a->nsh_entry.tlvs_data, tlvs_len);
+	  nsh_entry->tlvs_data = data;
+	  nsh_entry->tlvs_len = tlvs_len;
+	  vec_free(a->nsh_entry.tlvs_data);
+        }
+
+      nsh_header_rewrite(nsh_entry);
 
       key_copy = clib_mem_alloc (sizeof (*key_copy));
       clib_memcpy (key_copy, &key, sizeof (*key_copy));
 
       hash_set_mem (nm->nsh_entry_by_key, key_copy,
-                    hdr - nm->nsh_entries);
-      entry_index = hdr - nm->nsh_entries;
+                    nsh_entry - nm->nsh_entries);
+      entry_index = nsh_entry - nm->nsh_entries;
     }
   else
     {
-      if (!entry)
+      if (!entry_id)
 	return -2; //TODO API_ERROR_NO_SUCH_ENTRY;
 
-      hdr = pool_elt_at_index (nm->nsh_entries, entry[0]);
+      nsh_entry = pool_elt_at_index (nm->nsh_entries, entry_id[0]);
       hp = hash_get_pair (nm->nsh_entry_by_key, &key);
       key_copy = (void *)(hp->key);
       hash_unset_mem (nm->nsh_entry_by_key, &key);
       clib_mem_free (key_copy);
 
-      pool_put (nm->nsh_entries, hdr);
+      vec_free (nsh_entry->tlvs_data);
+      vec_free (nsh_entry->rewrite);
+      pool_put (nm->nsh_entries, nsh_entry);
     }
 
   if (entry_indexp)
@@ -658,10 +924,18 @@ nsh_add_del_entry_command_fn (vlib_main_t * vm,
   u32 c2 = 0;
   u32 c3 = 0;
   u32 c4 = 0;
+  u8 * data = 0;
+  nsh_tlv_header_t tlv_header;
+  u8 cur_len = 0, tlvs_len = 0;
+  u8 * current;
+  nsh_main_t *nm = &nsh_main;
+  nsh_option_map_t _nsh_option, *nsh_option=&_nsh_option;
+  u8 option_size = 0;
   u32 tmp;
   int rv;
   u32 entry_index;
   nsh_add_del_entry_args_t _a, * a = &_a;
+  u8 has_ioam_trace_option = 0;
 
   /* Get a line of input. */
   if (! unformat_user (input, unformat_line_input, line_input))
@@ -696,6 +970,8 @@ nsh_add_del_entry_command_fn (vlib_main_t * vm,
       nsp_set = 1;
     else if (unformat (line_input, "nsi %d", &nsi))
       nsi_set = 1;
+    else if (unformat (line_input, "tlv-ioam-trace"))
+      has_ioam_trace_option = 1;
     else
       return clib_error_return (0, "parse error: '%U'",
                                 format_unformat_error, line_input);
@@ -709,20 +985,66 @@ nsh_add_del_entry_command_fn (vlib_main_t * vm,
   if (nsi_set == 0)
     return clib_error_return (0, "nsi not specified");
 
-  if (md_type != 1)
-    return clib_error_return (0, "md-type 1 only supported at this time");
-
-  md_type = 1;
-  length = 6;
+  if (md_type == 1 && has_ioam_trace_option == 1)
+    return clib_error_return (0, "Invalid MD Type");
 
   nsp_nsi = (nsp<<8) | nsi;
 
   memset (a, 0, sizeof (*a));
-
   a->is_add = is_add;
 
-#define _(x) a->nsh.x = x;
-  foreach_copy_nshhdr_field;
+  if (md_type == 1)
+    {
+      a->nsh_entry.md.md1_data.c1 = c1;
+      a->nsh_entry.md.md1_data.c2 = c2;
+      a->nsh_entry.md.md1_data.c3 = c3;
+      a->nsh_entry.md.md1_data.c4 = c4;
+      length = (sizeof(nsh_base_header_t)+sizeof(nsh_md1_data_t)) >> 2;
+    }
+  else if (md_type == 2)
+    {
+      length = sizeof(nsh_base_header_t) >> 2;
+
+      vec_free(a->nsh_entry.tlvs_data);
+      tlvs_len = (MAX_METADATA_LEN << 2);
+      vec_validate_aligned (data, tlvs_len-1, CLIB_CACHE_LINE_BYTES);
+      a->nsh_entry.tlvs_data = data;
+      current = data;
+
+      if(has_ioam_trace_option)
+	{
+	  tlv_header.class = clib_host_to_net_u16(NSH_MD2_IOAM_CLASS);
+          tlv_header.type = NSH_MD2_IOAM_OPTION_TYPE_TRACE;
+          /* Uses network order's class and type to lookup */
+          nsh_option = nsh_md2_lookup_option(tlv_header.class, tlv_header.type);
+          if( nsh_option == NULL)
+              return clib_error_return (0, "iOAM Trace not registered");
+
+          if(nm->add_options[nsh_option->option_id] != NULL)
+            {
+              if (0 != nm->add_options[nsh_option->option_id] (
+        	  (u8 *)current, &option_size ))
+                {
+        	  return clib_error_return (0, "Invalid MD Type");
+                }
+            }
+
+          nm->options_size[nsh_option->option_id]=  option_size;
+          /* round to 4-byte */
+          option_size = ( ((option_size+3)>>2) << 2 );
+
+          cur_len += option_size;
+          current = data + option_size;
+	}
+
+      /* Add more options' parsing */
+
+      a->nsh_entry.tlvs_len = cur_len;
+      length += (cur_len >> 2);
+    }
+
+#define _(x) a->nsh_entry.nsh_base.x = x;
+  foreach_copy_nsh_base_hdr_field;
 #undef _
 
   rv = nsh_add_del_entry (a, &entry_index);
@@ -742,8 +1064,8 @@ nsh_add_del_entry_command_fn (vlib_main_t * vm,
 VLIB_CLI_COMMAND (create_nsh_entry_command, static) = {
   .path = "create nsh entry",
   .short_help =
-  "create nsh entry {nsp <nn> nsi <nn>} c1 <nn> c2 <nn> c3 <nn> c4 <nn>"
-  " [md-type <nn>] [tlv <xx>] [del]\n",
+  "create nsh entry {nsp <nn> nsi <nn>} [md-type <nn>]"
+  "  [c1 <nn> c2 <nn> c3 <nn> c4 <nn>] [tlv-ioam-trace] [del]\n",
   .function = nsh_add_del_entry_command_fn,
 };
 
@@ -756,17 +1078,32 @@ static void vl_api_nsh_add_del_entry_t_handler
   int rv;
   nsh_add_del_entry_args_t _a, *a = &_a;
   u32 entry_index = ~0;
+  u8 tlvs_len = 0;
+  u8 * data = 0;
 
   a->is_add = mp->is_add;
-  a->nsh.ver_o_c = mp->ver_o_c;
-  a->nsh.length = mp->length;
-  a->nsh.md_type = mp->md_type;
-  a->nsh.next_protocol = mp->next_protocol;
-  a->nsh.nsp_nsi = ntohl(mp->nsp_nsi);
-  a->nsh.c1 = ntohl(mp->c1);
-  a->nsh.c2 = ntohl(mp->c2);
-  a->nsh.c3 = ntohl(mp->c3);
-  a->nsh.c4 = ntohl(mp->c4);
+  a->nsh_entry.nsh_base.ver_o_c = mp->ver_o_c;
+  a->nsh_entry.nsh_base.length = mp->length;
+  a->nsh_entry.nsh_base.md_type = mp->md_type;
+  a->nsh_entry.nsh_base.next_protocol = mp->next_protocol;
+  a->nsh_entry.nsh_base.nsp_nsi = ntohl(mp->nsp_nsi);
+  if (mp->md_type == 1)
+    {
+      a->nsh_entry.md.md1_data.c1 = ntohl(mp->c1);
+      a->nsh_entry.md.md1_data.c2 = ntohl(mp->c2);
+      a->nsh_entry.md.md1_data.c3 = ntohl(mp->c3);
+      a->nsh_entry.md.md1_data.c4 = ntohl(mp->c4);
+    }
+  else if (mp->md_type == 2)
+    {
+      vec_free(a->nsh_entry.tlvs_data);
+      tlvs_len = mp->tlv_length;
+      vec_validate_aligned (data, tlvs_len-1, CLIB_CACHE_LINE_BYTES);
+
+      clib_memcpy(data, a->nsh_entry.tlvs_data, tlvs_len);
+      a->nsh_entry.tlvs_data = data;
+      a->nsh_entry.tlvs_len = tlvs_len;
+    }
 
   rv = nsh_add_del_entry (a, &entry_index);
 
@@ -777,7 +1114,7 @@ static void vl_api_nsh_add_del_entry_t_handler
 }
 
 static void send_nsh_entry_details
-(nsh_header_t * t, unix_shared_memory_queue_t * q, u32 context)
+(nsh_entry_t * t, unix_shared_memory_queue_t * q, u32 context)
 {
     vl_api_nsh_entry_details_t * rmp;
     nsh_main_t * nm = &nsh_main;
@@ -786,15 +1123,24 @@ static void send_nsh_entry_details
     memset (rmp, 0, sizeof (*rmp));
 
     rmp->_vl_msg_id = ntohs((VL_API_NSH_ENTRY_DETAILS)+nm->msg_id_base);
-    rmp->ver_o_c = t->ver_o_c;
-    rmp->length = t->length;
-    rmp->md_type = t->md_type;
-    rmp->next_protocol = t->next_protocol;
-    rmp->nsp_nsi = htonl(t->nsp_nsi);
-    rmp->c1 = htonl(t->c1);
-    rmp->c2 = htonl(t->c2);
-    rmp->c3 = htonl(t->c3);
-    rmp->c4 = htonl(t->c4);
+    rmp->ver_o_c = t->nsh_base.ver_o_c;
+    rmp->length = t->nsh_base.length;
+    rmp->md_type = t->nsh_base.md_type;
+    rmp->next_protocol = t->nsh_base.next_protocol;
+    rmp->nsp_nsi = htonl(t->nsh_base.nsp_nsi);
+
+    if (t->nsh_base.md_type == 1)
+      {
+	rmp->tlv_length = 4;
+        rmp->c1 = htonl(t->md.md1_data.c1);
+        rmp->c2 = htonl(t->md.md1_data.c2);
+        rmp->c3 = htonl(t->md.md1_data.c3);
+        rmp->c4 = htonl(t->md.md1_data.c4);
+      }
+    else if (t->nsh_base.md_type == 2)
+      {
+        /* TBD */
+      }
 
     rmp->context = context;
 
@@ -806,7 +1152,7 @@ static void vl_api_nsh_entry_dump_t_handler
 {
     unix_shared_memory_queue_t * q;
     nsh_main_t * nm = &nsh_main;
-    nsh_header_t * t;
+    nsh_entry_t * t;
     u32 entry_index;
 
     q = vl_api_client_index_to_input_queue (mp->client_index);
@@ -894,14 +1240,18 @@ show_nsh_entry_command_fn (vlib_main_t * vm,
 			   vlib_cli_command_t * cmd)
 {
   nsh_main_t * nm = &nsh_main;
-  nsh_header_t * hdr;
+  nsh_entry_t * nsh_entry;
 
   if (pool_elts (nm->nsh_entries) == 0)
     vlib_cli_output (vm, "No nsh entries configured.");
 
-  pool_foreach (hdr, nm->nsh_entries,
+  pool_foreach (nsh_entry, nm->nsh_entries,
 		({
-		  vlib_cli_output (vm, "%U", format_nsh_header, hdr);
+		  vlib_cli_output (vm, "%U", format_nsh_header,
+				   nsh_entry->rewrite );
+
+		  vlib_cli_output (vm, "  rewrite_size: %d bytes",
+				   nsh_entry->rewrite_size);
 		}));
 
   return 0;
@@ -932,8 +1282,179 @@ nsh_plugin_api_hookup (vlib_main_t *vm)
   return 0;
 }
 
+always_inline void
+nsh_md2_encap (vlib_buffer_t * b, nsh_base_header_t *hdr,
+	       nsh_entry_t * nsh_entry)
+{
+  nsh_main_t *nm = &nsh_main;
+  nsh_base_header_t * nsh_base;
+  nsh_tlv_header_t * opt0;
+  nsh_tlv_header_t * limit0;
+  nsh_tlv_header_t * nsh_md2;
+  nsh_option_map_t * nsh_option;
+  u8 old_option_size = 0;
+  u8 new_option_size = 0;
 
+  /* Populate the NSH Header */
+  opt0 = (nsh_tlv_header_t *)(nsh_entry->tlvs_data);
+  limit0 = (nsh_tlv_header_t *) (nsh_entry->tlvs_data + nsh_entry->tlvs_len);
 
+  nsh_md2 = (nsh_tlv_header_t *)((u8 *)hdr /*nsh_entry->rewrite*/ + sizeof(nsh_base_header_t));
+  nsh_entry->rewrite_size = sizeof(nsh_base_header_t);
+
+  /* Scan the set of variable metadata, process ones that we understand */
+  while (opt0 < limit0)
+    {
+      old_option_size = sizeof (nsh_tlv_header_t) + opt0->length;
+      /* round to 4-byte */
+      old_option_size = ( (old_option_size+3)>>2 ) << 2;
+
+      nsh_option = nsh_md2_lookup_option(opt0->class, opt0->type);
+      if( nsh_option == NULL)
+	{
+	  goto next_tlv_md2;
+	}
+
+      if (nm->options[nsh_option->option_id])
+	{
+	  if ( (*nm->options[nsh_option->option_id]) (b, nsh_md2) )
+	    {
+	      goto next_tlv_md2;
+	    }
+
+	  /* option length may be varied */
+	  new_option_size = sizeof (nsh_tlv_header_t) + nsh_md2->length;
+	  /* round to 4-byte */
+	  new_option_size = ( (new_option_size+3)>>2 ) << 2;
+	  nsh_entry->rewrite_size += new_option_size;
+
+	  nsh_md2 = (nsh_tlv_header_t *) (((u8 *) nsh_md2) + new_option_size);
+	  opt0 = (nsh_tlv_header_t *) (((u8 *) opt0) + old_option_size);
+
+	}
+      else
+	{
+next_tlv_md2:
+	  opt0 = (nsh_tlv_header_t *) (((u8 *) opt0) + old_option_size);
+	}
+    }
+
+  /* update nsh header's length */
+  nsh_base = (nsh_base_header_t *)nsh_entry->rewrite;
+  nsh_base->length = (nsh_entry->rewrite_size >> 2);
+
+  return;
+}
+
+always_inline void
+nsh_md2_swap (vlib_buffer_t * b,
+              nsh_base_header_t * hdr,
+	      u32 header_len,
+	      nsh_entry_t * nsh_entry,
+	      u32 * next,
+	      u32 drop_node_val)
+{
+  nsh_main_t *nm = &nsh_main;
+  nsh_base_header_t * nsh_base;
+  nsh_tlv_header_t * opt0;
+  nsh_tlv_header_t * limit0;
+  nsh_tlv_header_t * nsh_md2;
+  nsh_option_map_t * nsh_option;
+  u8 old_option_size = 0;
+  u8 new_option_size = 0;
+
+  /* Populate the NSH Header */
+  opt0 = (nsh_md2_data_t *)(hdr + 1);
+  limit0 = (nsh_md2_data_t *) ((u8 *) hdr + header_len);
+
+  nsh_md2 = (nsh_tlv_header_t *)(nsh_entry->rewrite + sizeof(nsh_base_header_t));
+  nsh_entry->rewrite_size = sizeof(nsh_base_header_t);
+
+  /* Scan the set of variable metadata, process ones that we understand */
+  while (opt0 < limit0)
+    {
+      old_option_size = sizeof (nsh_tlv_header_t) + opt0->length;
+      /* round to 4-byte */
+      old_option_size = ( (old_option_size+3)>>2 ) << 2;
+
+      nsh_option = nsh_md2_lookup_option(opt0->class, opt0->type);
+      if( nsh_option == NULL)
+	{
+	  goto next_tlv_md2;
+	}
+
+      if (nm->swap_options[nsh_option->option_id])
+	{
+	  if ( (*nm->swap_options[nsh_option->option_id]) (b, opt0, nsh_md2) )
+	    {
+	      goto next_tlv_md2;
+	    }
+
+	  /* option length may be varied */
+	  new_option_size = sizeof (nsh_tlv_header_t) + nsh_md2->length;
+	  /* round to 4-byte */
+	  new_option_size = ( (new_option_size+3)>>2 ) << 2;
+	  nsh_entry->rewrite_size += new_option_size;
+	  nsh_md2 = (nsh_tlv_header_t *) (((u8 *) nsh_md2) + new_option_size);
+
+	  opt0 = (nsh_tlv_header_t *) (((u8 *) opt0) + old_option_size);
+
+	}
+      else
+	{
+next_tlv_md2:
+	  opt0 = (nsh_tlv_header_t *) (((u8 *) opt0) + old_option_size);
+	}
+    }
+
+  /* update nsh header's length */
+  nsh_base = (nsh_base_header_t *)nsh_entry->rewrite;
+  nsh_base->length = (nsh_entry->rewrite_size >> 2);
+  return;
+}
+
+always_inline void
+nsh_md2_decap (vlib_buffer_t * b,
+               nsh_base_header_t * hdr,
+	       u32 header_len,
+	       u32 * next,
+	       u32 drop_node_val)
+{
+  nsh_main_t *nm = &nsh_main;
+  nsh_md2_data_t *opt0;
+  nsh_md2_data_t *limit0;
+  nsh_option_map_t *nsh_option;
+  u8 option_len = 0;
+
+  /* Populate the NSH Header */
+  opt0 = (nsh_md2_data_t *)(hdr + 1);
+  limit0 = (nsh_md2_data_t *) ((u8 *) hdr + header_len);
+
+  /* Scan the set of variable metadata, process ones that we understand */
+  while (opt0 < limit0)
+    {
+      nsh_option = nsh_md2_lookup_option(opt0->class, opt0->type);
+      if( nsh_option == NULL)
+	{
+	  *next = drop_node_val;
+	  return;
+	}
+
+	  if (nm->pop_options[nsh_option->option_id])
+	    {
+	      if ( (*nm->pop_options[nsh_option->option_id]) (b, opt0) )
+		{
+		  *next = drop_node_val;
+		  return;
+		}
+	    }
+      /* round to 4-byte */
+      option_len = ( (opt0->length+3)>>2 ) << 2;
+      opt0 = (nsh_md2_data_t *) (((u8 *) opt0) + sizeof (nsh_md2_data_t) + option_len);
+    }
+
+  return;
+}
 
 static uword
 nsh_input_map (vlib_main_t * vm,
@@ -961,12 +1482,13 @@ nsh_input_map (vlib_main_t * vm,
 	  vlib_buffer_t * b0, *b1;
 	  u32 next0 = NSH_NODE_NEXT_DROP, next1 = NSH_NODE_NEXT_DROP;
 	  uword * entry0, *entry1;
-	  nsh_header_t * hdr0 = 0, *hdr1 = 0;
+	  nsh_base_header_t * hdr0 = 0, *hdr1 = 0;
 	  u32 header_len0 = 0, header_len1 = 0;
 	  u32 nsp_nsi0, nsp_nsi1;
 	  u32 error0, error1;
 	  nsh_map_t * map0 = 0, *map1 = 0;
-	  nsh_header_t *encap_hdr0 = 0, *encap_hdr1 = 0;
+	  nsh_entry_t * nsh_entry0 = 0, *nsh_entry1 = 0;
+	  nsh_base_header_t *encap_hdr0 = 0, *encap_hdr1 = 0;
 	  u32 encap_hdr_len0 = 0, encap_hdr_len1 = 0;
 	  nsh_proxy_session_by_key_t key0, key1;
 	  uword *p0, *p1;
@@ -999,10 +1521,11 @@ nsh_input_map (vlib_main_t * vm,
 	  error1 = 0;
 
 	  b0 = vlib_get_buffer(vm, bi0);
+	  b1 = vlib_get_buffer(vm, bi1);
 	  hdr0 = vlib_buffer_get_current(b0);
           if(node_type == NSH_INPUT_TYPE)
             {
-              nsp_nsi0 = clib_net_to_host_u32(hdr0->nsp_nsi);
+              nsp_nsi0 = hdr0->nsp_nsi;
               header_len0 = hdr0->length * 4;
             }
           else if(node_type == NSH_CLASSIFIER_TYPE)
@@ -1031,13 +1554,10 @@ nsh_input_map (vlib_main_t * vm,
               nsp_nsi0 = proxy0->nsp_nsi;
 	    }
 
-	  entry0 = hash_get_mem(nm->nsh_mapping_by_key, &nsp_nsi0);
-
-	  b1 = vlib_get_buffer(vm, bi1);
           hdr1 = vlib_buffer_get_current(b1);
           if(node_type == NSH_INPUT_TYPE)
 	    {
-	      nsp_nsi1 = clib_net_to_host_u32(hdr1->nsp_nsi);
+	      nsp_nsi1 = hdr1->nsp_nsi;
 	      header_len1 = hdr1->length * 4;
 	    }
           else if(node_type == NSH_CLASSIFIER_TYPE)
@@ -1066,8 +1586,6 @@ nsh_input_map (vlib_main_t * vm,
               nsp_nsi1 = proxy1->nsp_nsi;
 	    }
 
-          entry1 = hash_get_mem(nm->nsh_mapping_by_key, &nsp_nsi1);
-
 	  /* Process packet 0 */
 	  entry0 = hash_get_mem(nm->nsh_mapping_by_key, &nsp_nsi0);
 	  if (PREDICT_FALSE(entry0 == 0))
@@ -1090,6 +1608,17 @@ nsh_input_map (vlib_main_t * vm,
 
 	  if(PREDICT_FALSE(map0->nsh_action == NSH_ACTION_POP))
 	    {
+	      /* Manipulate MD2 */
+              if(PREDICT_FALSE(hdr0->md_type == 2))
+        	{
+        	  nsh_md2_decap(b0, hdr0, header_len0, &next0, NSH_NODE_NEXT_DROP);
+        	  if (PREDICT_FALSE(next0 == NSH_NODE_NEXT_DROP))
+        	    {
+        	      error0 = NSH_NODE_ERROR_INVALID_OPTIONS;
+        	      goto trace0;
+        	    }
+        	}
+
               /* Pop NSH header */
 	      vlib_buffer_advance(b0, (word)header_len0);
 	      goto trace0;
@@ -1102,14 +1631,30 @@ nsh_input_map (vlib_main_t * vm,
 	      goto trace0;
 	    }
 
-	  encap_hdr0 = pool_elt_at_index(nm->nsh_entries, entry0[0]);
-	  encap_hdr_len0 = encap_hdr0->length * 4;
+	  nsh_entry0 = (nsh_entry_t *)pool_elt_at_index(nm->nsh_entries, entry0[0]);
+	  encap_hdr0 = (nsh_base_header_t *)(nsh_entry0->rewrite);
+	  /* rewrite_size should equal to (encap_hdr0->length * 4) */
+	  encap_hdr_len0 = nsh_entry0->rewrite_size;
 
 	  if(PREDICT_TRUE(map0->nsh_action == NSH_ACTION_SWAP))
 	    {
+	      /* Manipulate MD2 */
+              if(PREDICT_FALSE(hdr0->md_type == 2))
+        	{
+        	  nsh_md2_swap(b0, hdr0, header_len0, nsh_entry0,
+        	               &next0, NSH_NODE_NEXT_DROP);
+        	  if (PREDICT_FALSE(next0 == NSH_NODE_NEXT_DROP))
+        	    {
+        	      error0 = NSH_NODE_ERROR_INVALID_OPTIONS;
+        	      goto trace0;
+        	    }
+        	}
+
               /* Pop old NSH header */
 	      vlib_buffer_advance(b0, (word)header_len0);
 
+              /* After processing, md2's length may be varied */
+              encap_hdr_len0 = nsh_entry0->rewrite_size;
 	      /* Push new NSH header */
 	      vlib_buffer_advance(b0, -(word)encap_hdr_len0);
 	      hdr0 = vlib_buffer_get_current(b0);
@@ -1120,10 +1665,19 @@ nsh_input_map (vlib_main_t * vm,
 
 	  if(PREDICT_TRUE(map0->nsh_action == NSH_ACTION_PUSH))
 	    {
+              /* After processing, md2's length may be varied */
+              encap_hdr_len0 = nsh_entry0->rewrite_size;
 	      /* Push new NSH header */
 	      vlib_buffer_advance(b0, -(word)encap_hdr_len0);
 	      hdr0 = vlib_buffer_get_current(b0);
 	      clib_memcpy(hdr0, encap_hdr0, (word)encap_hdr_len0);
+
+	      /* Manipulate MD2 */
+              if(PREDICT_FALSE(nsh_entry0->nsh_base.md_type == 2))
+        	{
+        	  nsh_md2_encap(b0, hdr0, nsh_entry0);
+        	}
+
 	    }
 
         trace0: b0->error = error0 ? node->errors[error0] : 0;
@@ -1131,7 +1685,7 @@ nsh_input_map (vlib_main_t * vm,
           if (PREDICT_FALSE(b0->flags & VLIB_BUFFER_IS_TRACED))
             {
               nsh_input_trace_t *tr = vlib_add_trace(vm, node, b0, sizeof(*tr));
-              tr->nsh_header = *hdr0;
+              clib_memcpy ( &(tr->trace_data), hdr0, (hdr0->length*4) );
             }
 
 	  /* Process packet 1 */
@@ -1156,6 +1710,17 @@ nsh_input_map (vlib_main_t * vm,
 
 	  if(PREDICT_FALSE(map1->nsh_action == NSH_ACTION_POP))
 	    {
+	      /* Manipulate MD2 */
+              if(PREDICT_FALSE(hdr1->md_type == 2))
+        	{
+        	  nsh_md2_decap(b1, hdr1, header_len1, &next1, NSH_NODE_NEXT_DROP);
+        	  if (PREDICT_FALSE(next1 == NSH_NODE_NEXT_DROP))
+        	    {
+        	      error1 = NSH_NODE_ERROR_INVALID_OPTIONS;
+        	      goto trace1;
+        	    }
+        	}
+
               /* Pop NSH header */
 	      vlib_buffer_advance(b1, (word)header_len1);
 	      goto trace1;
@@ -1168,36 +1733,61 @@ nsh_input_map (vlib_main_t * vm,
 	      goto trace1;
 	    }
 
-	  encap_hdr1 = pool_elt_at_index(nm->nsh_entries, entry1[0]);
-	  encap_hdr_len1 = encap_hdr1->length * 4;
+	  nsh_entry1 = (nsh_entry_t *)pool_elt_at_index(nm->nsh_entries, entry1[0]);
+	  encap_hdr1 = (nsh_base_header_t *)(nsh_entry1->rewrite);
+	  /* rewrite_size should equal to (encap_hdr0->length * 4) */
+	  encap_hdr_len1 = nsh_entry1->rewrite_size;
 
           if(PREDICT_TRUE(map1->nsh_action == NSH_ACTION_SWAP))
             {
+	      /* Manipulate MD2 */
+              if(PREDICT_FALSE(hdr1->md_type == 2))
+        	{
+        	  nsh_md2_swap(b1, hdr1, header_len1, nsh_entry1,
+        	               &next1, NSH_NODE_NEXT_DROP);
+        	  if (PREDICT_FALSE(next1 == NSH_NODE_NEXT_DROP))
+        	    {
+        	      error1 = NSH_NODE_ERROR_INVALID_OPTIONS;
+        	      goto trace1;
+        	    }
+        	}
+
               /* Pop old NSH header */
-              vlib_buffer_advance(b1, (word)header_len1);
+	      vlib_buffer_advance(b1, (word)header_len1);
 
-              /* Push new NSH header */
-              vlib_buffer_advance(b1, -(word)encap_hdr_len1);
-              hdr1 = vlib_buffer_get_current(b1);
-              clib_memcpy(hdr1, encap_hdr1, (word)encap_hdr_len1);
+              /* After processing, md2's length may be varied */
+              encap_hdr_len1 = nsh_entry1->rewrite_size;
+	      /* Push new NSH header */
+	      vlib_buffer_advance(b1, -(word)encap_hdr_len1);
+	      hdr1 = vlib_buffer_get_current(b1);
+	      clib_memcpy(hdr1, encap_hdr1, (word)encap_hdr_len1);
 
-              goto trace1;
-            }
+	      goto trace1;
+	    }
 
           if(PREDICT_FALSE(map1->nsh_action == NSH_ACTION_PUSH))
             {
-              /* Push new NSH header */
-              vlib_buffer_advance(b1, -(word)encap_hdr_len1);
-              hdr1 = vlib_buffer_get_current(b1);
-              clib_memcpy(hdr1, encap_hdr1, (word)encap_hdr_len1);
-            }
+              /* After processing, md2's length may be varied */
+              encap_hdr_len1 = nsh_entry1->rewrite_size;
+	      /* Push new NSH header */
+	      vlib_buffer_advance(b1, -(word)encap_hdr_len1);
+	      hdr1 = vlib_buffer_get_current(b1);
+	      clib_memcpy(hdr1, encap_hdr1, (word)encap_hdr_len1);
+
+	      /* Manipulate MD2 */
+              if(PREDICT_FALSE(nsh_entry1->nsh_base.md_type == 2))
+        	{
+        	  nsh_md2_encap(b1, hdr1, nsh_entry1);
+        	}
+
+	    }
 
 	trace1: b1->error = error1 ? node->errors[error1] : 0;
 
 	  if (PREDICT_FALSE(b1->flags & VLIB_BUFFER_IS_TRACED))
 	    {
 	      nsh_input_trace_t *tr = vlib_add_trace(vm, node, b1, sizeof(*tr));
-	      tr->nsh_header = *hdr1;
+	      clib_memcpy ( &(tr->trace_data), hdr1, (hdr1->length*4) );
 	    }
 
 	  vlib_validate_buffer_enqueue_x2(vm, node, next_index, to_next,
@@ -1207,16 +1797,17 @@ nsh_input_map (vlib_main_t * vm,
 
       while (n_left_from > 0 && n_left_to_next > 0)
 	{
-	  u32 bi0;
-	  vlib_buffer_t * b0;
+	  u32 bi0 = 0;
+	  vlib_buffer_t * b0 = NULL;
 	  u32 next0 = NSH_NODE_NEXT_DROP;
 	  uword * entry0;
-	  nsh_header_t * hdr0 = 0;
+	  nsh_base_header_t * hdr0 = 0;
 	  u32 header_len0 = 0;
 	  u32 nsp_nsi0;
 	  u32 error0;
 	  nsh_map_t * map0 = 0;
-	  nsh_header_t * encap_hdr0 = 0;
+	  nsh_entry_t * nsh_entry0 = 0;
+	  nsh_base_header_t * encap_hdr0 = 0;
 	  u32 encap_hdr_len0 = 0;
 	  nsh_proxy_session_by_key_t key0;
 	  uword *p0;
@@ -1235,7 +1826,7 @@ nsh_input_map (vlib_main_t * vm,
 
           if(node_type == NSH_INPUT_TYPE)
             {
-              nsp_nsi0 = clib_net_to_host_u32(hdr0->nsp_nsi);
+              nsp_nsi0 = hdr0->nsp_nsi;
               header_len0 = hdr0->length * 4;
             }
           else if(node_type == NSH_CLASSIFIER_TYPE)
@@ -1287,6 +1878,17 @@ nsh_input_map (vlib_main_t * vm,
 
 	  if(PREDICT_FALSE(map0->nsh_action == NSH_ACTION_POP))
 	    {
+	      /* Manipulate MD2 */
+              if(PREDICT_FALSE(hdr0->md_type == 2))
+        	{
+        	  nsh_md2_decap(b0, hdr0, header_len0, &next0, NSH_NODE_NEXT_DROP);
+        	  if (PREDICT_FALSE(next0 == NSH_NODE_NEXT_DROP))
+        	    {
+        	      error0 = NSH_NODE_ERROR_INVALID_OPTIONS;
+        	      goto trace00;
+        	    }
+        	}
+
               /* Pop NSH header */
 	      vlib_buffer_advance(b0, (word)header_len0);
 	      goto trace00;
@@ -1299,14 +1901,30 @@ nsh_input_map (vlib_main_t * vm,
 	      goto trace00;
 	    }
 
-	  encap_hdr0 = pool_elt_at_index(nm->nsh_entries, entry0[0]);
-	  encap_hdr_len0 = encap_hdr0->length * 4;
+	  nsh_entry0 = (nsh_entry_t *)pool_elt_at_index(nm->nsh_entries, entry0[0]);
+	  encap_hdr0 = (nsh_base_header_t *)(nsh_entry0->rewrite);
+	  /* rewrite_size should equal to (encap_hdr0->length * 4) */
+	  encap_hdr_len0 = nsh_entry0->rewrite_size;
 
 	  if(PREDICT_TRUE(map0->nsh_action == NSH_ACTION_SWAP))
 	    {
+	      /* Manipulate MD2 */
+              if(PREDICT_FALSE(hdr0->md_type == 2))
+        	{
+        	  nsh_md2_swap(b0, hdr0, header_len0, nsh_entry0,
+        	               &next0, NSH_NODE_NEXT_DROP);
+        	  if (PREDICT_FALSE(next0 == NSH_NODE_NEXT_DROP))
+        	    {
+        	      error0 = NSH_NODE_ERROR_INVALID_OPTIONS;
+        	      goto trace00;
+        	    }
+        	}
+
               /* Pop old NSH header */
 	      vlib_buffer_advance(b0, (word)header_len0);
 
+              /* After processing, md2's length may be varied */
+              encap_hdr_len0 = nsh_entry0->rewrite_size;
 	      /* Push new NSH header */
 	      vlib_buffer_advance(b0, -(word)encap_hdr_len0);
 	      hdr0 = vlib_buffer_get_current(b0);
@@ -1317,10 +1935,18 @@ nsh_input_map (vlib_main_t * vm,
 
 	  if(PREDICT_TRUE(map0->nsh_action == NSH_ACTION_PUSH))
 	    {
+              /* After processing, md2's length may be varied */
+              encap_hdr_len0 = nsh_entry0->rewrite_size;
 	      /* Push new NSH header */
 	      vlib_buffer_advance(b0, -(word)encap_hdr_len0);
 	      hdr0 = vlib_buffer_get_current(b0);
 	      clib_memcpy(hdr0, encap_hdr0, (word)encap_hdr_len0);
+	      /* Manipulate MD2 */
+              if(PREDICT_FALSE(nsh_entry0->nsh_base.md_type == 2))
+        	{
+        	  nsh_md2_encap(b0, hdr0, nsh_entry0);
+        	}
+
 	    }
 
 	  trace00: b0->error = error0 ? node->errors[error0] : 0;
@@ -1328,7 +1954,7 @@ nsh_input_map (vlib_main_t * vm,
 	  if (PREDICT_FALSE(b0->flags & VLIB_BUFFER_IS_TRACED))
 	    {
 	      nsh_input_trace_t *tr = vlib_add_trace(vm, node, b0, sizeof(*tr));
-	      tr->nsh_header = *hdr0;
+	      clib_memcpy ( &(tr->trace_data[0]), hdr0, (hdr0->length*4) );
 	    }
 
 	  vlib_validate_buffer_enqueue_x1(vm, node, next_index, to_next,
@@ -1408,7 +2034,7 @@ VLIB_REGISTER_NODE (nsh_input_node) = {
   .name = "nsh-input",
   .vector_size = sizeof (u32),
   .format_trace = format_nsh_node_map_trace,
-  .format_buffer = format_nsh_header_with_length,
+  .format_buffer = format_nsh_header,
   .type = VLIB_NODE_TYPE_INTERNAL,
 
   .n_errors = ARRAY_LEN(nsh_node_error_strings),
@@ -1431,7 +2057,7 @@ VLIB_REGISTER_NODE (nsh_proxy_node) = {
   .name = "nsh-proxy",
   .vector_size = sizeof (u32),
   .format_trace = format_nsh_node_map_trace,
-  .format_buffer = format_nsh_header_with_length,
+  .format_buffer = format_nsh_header,
   .type = VLIB_NODE_TYPE_INTERNAL,
 
   .n_errors = ARRAY_LEN(nsh_node_error_strings),
@@ -1454,7 +2080,7 @@ VLIB_REGISTER_NODE (nsh_classifier_node) = {
   .name = "nsh-classifier",
   .vector_size = sizeof (u32),
   .format_trace = format_nsh_node_map_trace,
-  .format_buffer = format_nsh_header_with_length,
+  .format_buffer = format_nsh_header,
   .type = VLIB_NODE_TYPE_INTERNAL,
 
   .n_errors = ARRAY_LEN(nsh_node_error_strings),
@@ -1470,6 +2096,7 @@ VLIB_REGISTER_NODE (nsh_classifier_node) = {
 };
 
 VLIB_NODE_FUNCTION_MULTIARCH (nsh_classifier_node, nsh_classifier);
+
 
 clib_error_t *nsh_init (vlib_main_t *vm)
 {
@@ -1494,6 +2121,9 @@ clib_error_t *nsh_init (vlib_main_t *vm)
 
   nm->nsh_proxy_session_by_key
     = hash_create_mem (0, sizeof(nsh_proxy_session_by_key_t), sizeof (uword));
+
+  nm->nsh_option_map_by_key
+    = hash_create_mem (0, sizeof(nsh_option_map_by_key_t), sizeof (uword));
 
   name = format (0, "nsh_%08x%c", api_version, 0);
 

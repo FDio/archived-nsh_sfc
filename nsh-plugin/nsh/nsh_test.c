@@ -187,12 +187,10 @@ static int api_nsh_add_del_entry (vat_main_t * vam)
     if (nsi_set == 0)
       return -2; //TODO Error type for this cond:clib_error_return (0, "nsi not specified");
 
-    if (md_type != 1)
-      return -3; //TODO Error type for this cond: clib_error_return (0, "md-type 1 only supported at this time");
-
-    //TODO sort out TLVS and MD Type2 support
-    md_type = 1;
-    length = 6;
+    if (md_type == 1)
+      length = 6;
+    else if (md_type == 2)
+      length = 2;  /* base header length */
 
     nsp_nsi = (nsp<<8) | nsi;
 
@@ -201,7 +199,7 @@ static int api_nsh_add_del_entry (vat_main_t * vam)
     mp->is_add = is_add;
 
 #define _(x) mp->x = x;
-    foreach_copy_nshhdr_field;
+    foreach_copy_nsh_base_hdr_field;
 #undef _
 
 

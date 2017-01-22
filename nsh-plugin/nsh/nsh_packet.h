@@ -74,11 +74,30 @@ typedef CLIB_PACKED(struct {
   u8 md_type;
   u8 next_protocol;
   u32 nsp_nsi; // nsp 24 bits, nsi 8 bits
-  /* Context headers, always present */
-  u32 c1; u32 c2; u32 c3; u32 c4;
+}) nsh_base_header_t;
 
-  /* Optional variable length metadata */
-  u32 tlvs[0];
+typedef CLIB_PACKED(struct {
+  /* Context headers, always present */
+  u32 c1;
+  u32 c2;
+  u32 c3;
+  u32 c4;
+}) nsh_md1_data_t;
+
+typedef CLIB_PACKED(struct {
+  u16 class;
+  u8 type;
+  u8 length;
+}) nsh_tlv_header_t;
+
+typedef nsh_tlv_header_t nsh_md2_data_t;
+
+typedef CLIB_PACKED(struct {
+  nsh_base_header_t nsh_base;
+  union {
+     nsh_md1_data_t md1_data;
+     nsh_md2_data_t md2_data;
+   } md;
 }) nsh_header_t;
 
 #define NSH_VERSION (0<<6)

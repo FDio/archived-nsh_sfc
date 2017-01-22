@@ -2,9 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at:
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -13,7 +13,7 @@
 
 AUTOMAKE_OPTIONS = foreign subdir-objects
 SUBDIRS=java
-AM_CFLAGS = -Wall -I@TOOLKIT_INCLUDE@
+AM_CFLAGS = -Wall -Werror -I@TOOLKIT_INCLUDE@
 
 nsh_plugin_la_CPPFLAGS = -DDEBUG -g
 nsh_test_plugin_la_CPPFLAGS = -DDEBUG -g
@@ -22,7 +22,7 @@ CPPFLAGS += -DDEBUG -g
 
 lib_LTLIBRARIES = nsh_plugin.la nsh_test_plugin.la
 nsh_plugin_la_SOURCES = nsh/nsh.c  \
-	vpp-api/nsh.api.h 
+	vpp-api/nsh.api.h
 nsh_plugin_la_LDFLAGS = -module
 
 BUILT_SOURCES = vpp-api/nsh.api.h

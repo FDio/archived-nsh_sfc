@@ -20,10 +20,42 @@
 #include <vnet/ip/ip4_packet.h>
 
 typedef struct {
+  u16 class;
+  u8 type;
+  u8 pad;
+} nsh_option_map_by_key_t;
 
+typedef struct {
+  u32 option_id;
+} nsh_option_map_t;
+
+#define MAX_METADATA_LEN 62
+/** Note:
+ * rewrite and rewrite_size used to support varied nsh header
+ */
+typedef struct {
+  nsh_base_header_t nsh_base;
+  union {
+     nsh_md1_data_t md1_data;
+     nsh_md2_data_t md2_data;
+   } md;
+  u8 tlvs_len;    /* configured md2 metadata's length, unit: byte */
+  u8 * tlvs_data; /* configured md2 metadata, network order */
+
+  /** Rewrite string. network order
+   * contains base header and metadata */
+  u8 * rewrite;
+  u8  rewrite_size; /* unit: byte */
+} nsh_entry_t;
+
+typedef struct {
+  u8 is_add;
+  nsh_entry_t nsh_entry;
+} nsh_add_del_entry_args_t;
+
+typedef struct {
   /** Key for nsh_header_t entry: 24bit NSP 8bit NSI */
   u32 nsp_nsi;
-
   /** Key for nsh_header_t entry to map to. : 24bit NSP 8bit NSI
    *  This may be ~0 if next action is to decap to NSH next protocol
    *  Note the following heuristic:
@@ -32,48 +64,36 @@ typedef struct {
    *  Note: these are heuristics. Rules about NSI decrement are out of scope
    */
   u32 mapped_nsp_nsi;
-
   /* NSH Header action: swap, push and pop */
   u32 nsh_action;
-
   /* vnet intfc sw_if_index */
   u32 sw_if_index;
-
   u32 next_node;
-
 } nsh_map_t;
 
 typedef struct {
-
-  u32 transport_type; /* 1:vxlan; */
-
-  u32 transport_index; /* transport's sw_if_index */
-
-} nsh_proxy_session_by_key_t;
-
-typedef struct {
-
-  /* 24bit NSP 8bit NSI */
-  u32 nsp_nsi;
-
-} nsh_proxy_session_t;
-
-typedef struct {
-  nsh_map_t map;
   u8 is_add;
+  nsh_map_t map;
 } nsh_add_del_map_args_t;
 
 typedef struct {
-  u8 is_add;
-  nsh_header_t nsh;
-} nsh_add_del_entry_args_t;
+  u32 transport_type; /* 1:vxlan; */
+  u32 transport_index; /* transport's sw_if_index */
+} nsh_proxy_session_by_key_t;
+
+typedef struct {
+  /* 24bit NSP 8bit NSI */
+  u32 nsp_nsi;
+} nsh_proxy_session_t;
+
+#define MAX_MD2_OPTIONS 256
 
 typedef struct {
   /* API message ID base */
   u16 msg_id_base;
 
   /* vector of nsh_header entry instances */
-  nsh_header_t *nsh_entries;
+  nsh_entry_t *nsh_entries;
 
   /* hash lookup nsh header by key: {u32: nsp_nsi} */
   uword * nsh_entry_by_key;
@@ -91,6 +111,30 @@ typedef struct {
   /* hash lookup nsh_proxy by key */
   uword * nsh_proxy_session_by_key;
 
+  /* vector of nsh_option_map */
+  nsh_option_map_t * nsh_option_mappings;
+  /* hash lookup nsh_option_map by key */
+  uword * nsh_option_map_by_key;
+
+  /* Array of function pointers to process MD-Type 2 handling routines */
+  /*
+   * For API or CLI configuration and construct the rewrite buffer, invokes add_options() function.
+   * In the encap node, i.e. when performing PUSH nsh header, invokes options() function.
+   * In the swap node, i.e. when performing SWAP nsh header, invokes swap_options() function.
+   * In the decap node, i.e. when performing POP nsh header, invokes pop_options() function.
+   */
+  u8 options_size[MAX_MD2_OPTIONS];  /* sum of header and metadata */
+  int (*add_options[MAX_MD2_OPTIONS]) (u8 * opt,
+					   u8 * opt_size);
+  int (*options[MAX_MD2_OPTIONS]) (vlib_buffer_t * b,
+                                   nsh_tlv_header_t * opt);
+  int (*swap_options[MAX_MD2_OPTIONS]) (vlib_buffer_t * b,
+                                        nsh_tlv_header_t * old_opt,
+					nsh_tlv_header_t * new_opt);
+  int (*pop_options[MAX_MD2_OPTIONS]) (vlib_buffer_t * b,
+				       nsh_tlv_header_t * opt);
+  u8 *(*trace[MAX_MD2_OPTIONS]) (u8 * s, nsh_tlv_header_t * opt);
+
   /* convenience */
   vlib_main_t * vlib_main;
   vnet_main_t * vnet_main;
@@ -102,23 +146,12 @@ u8 * format_nsh_input_map_trace (u8 * s, va_list * args);
 u8 * format_nsh_header_with_length (u8 * s, va_list * args);
 
 /* Helper macros used in nsh.c and nsh_test.c */
-#define foreach_copy_nshhdr_field               \
+#define foreach_copy_nsh_base_hdr_field         \
 _(ver_o_c)					\
 _(length)					\
 _(md_type)					\
 _(next_protocol)				\
-_(nsp_nsi)					\
-_(c1)						\
-_(c2)						\
-_(c3)						\
-_(c4)
-/* TODO Temp killing tlvs as its causing pain - fix in NSH_SFC */
-#define foreach_32bit_field			\
-_(nsp_nsi)                                      \
-_(c1)                                           \
-_(c2)                                           \
-_(c3)                                           \
-_(c4)
+_(nsp_nsi)
 
 /* Statistics (not really errors) */
 #define foreach_nsh_node_error    \
@@ -127,6 +160,7 @@ _(NO_MAPPING, "no mapping for nsh key") \
 _(NO_ENTRY, "no entry for nsh key") \
 _(NO_PROXY, "no proxy for transport key") \
 _(INVALID_NEXT_PROTOCOL, "invalid next protocol") \
+_(INVALID_OPTIONS, "invalid md2 options") \
 
 typedef enum {
 #define _(sym,str) NSH_NODE_ERROR_##sym,
@@ -143,6 +177,7 @@ typedef enum {
   _(ENCAP_VXLAN4, "vxlan4-encap" )  \
   _(ENCAP_VXLAN6, "vxlan6-encap" )  \
   _(DECAP_ETH_INPUT, "ethernet-input" ) \
+  _(ENCAP_LISP_GPE, "interface-output" )  \
 /* /\* TODO once moved to Project:NSH_SFC *\/ */
   /* _(ENCAP_ETHERNET, "*** TX TO ETHERNET ***")   \ */
 /*   _(DECAP_IP4_INPUT,  "ip4-input") \ */
@@ -167,4 +202,29 @@ typedef enum {
   NSH_CLASSIFIER_TYPE,
 } nsh_entity_type;
 
+/* md2 class and type definition */
+#define NSH_MD2_IOAM_CLASS 0x9
+#define NSH_MD2_IOAM_OPTION_TYPE_TRACE   0x3B
+#define NSH_MD2_IOAM_OPTION_TYPE_PROOF_OF_TRANSIT 0x3C
+
+#define NSH_MD2_IOAM_TRACE_DUMMY_LEN 0x8
+
+#define MAX_NSH_HEADER_LEN  256
+#define MAX_NSH_OPTION_LEN  128
+
+int
+nsh_md2_register_option (u16 class,
+                      u8 type,
+                      u8 option_size,
+                      int add_options (u8 * opt,
+                                       u8 * opt_size),
+                      int options(vlib_buffer_t * b,
+                                  nsh_tlv_header_t * opt),
+                      int swap_options (vlib_buffer_t * b,
+				        nsh_tlv_header_t * old_opt,
+		                        nsh_tlv_header_t * new_opt),
+                      int pop_options (vlib_buffer_t * b,
+                                       nsh_tlv_header_t * opt),
+                      u8 * trace (u8 * s,
+                                  nsh_tlv_header_t * opt));
 #endif /* included_nsh_h */
