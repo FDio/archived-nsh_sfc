@@ -539,6 +539,12 @@ static void vl_api_nsh_add_del_map_t_handler
 
   rv = nsh_add_del_map (a, &map_index);
 
+  if((a->map.next_node == NSH_NODE_NEXT_ENCAP_VXLAN4)
+      | (a->map.next_node == NSH_NODE_NEXT_ENCAP_VXLAN6))
+    {
+      rv = nsh_add_del_proxy_session(a);
+    }
+
   REPLY_MACRO2(VL_API_NSH_ADD_DEL_MAP_REPLY,
   ({
     rmp->map_index = htonl (map_index);
