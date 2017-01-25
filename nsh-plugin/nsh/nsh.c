@@ -935,6 +935,20 @@ nsh_plugin_api_hookup (vlib_main_t *vm)
 }
 
 
+static void
+nsh_header_host_to_net(nsh_header_t *hdr, nsh_header_t *encap_hdr)
+{
+  hdr->ver_o_c = encap_hdr->ver_o_c;
+  hdr->length = encap_hdr->length;
+  hdr->md_type = encap_hdr->md_type;
+  hdr->next_protocol = encap_hdr->next_protocol;
+  hdr->nsp_nsi = clib_host_to_net_u32(encap_hdr->nsp_nsi);
+  hdr->c1 = clib_host_to_net_u32(encap_hdr->c1);
+  hdr->c2 = clib_host_to_net_u32(encap_hdr->c2);
+  hdr->c3 = clib_host_to_net_u32(encap_hdr->c3);
+  hdr->c4 = clib_host_to_net_u32(encap_hdr->c4);
+
+}
 
 
 static uword
@@ -1115,7 +1129,7 @@ nsh_input_map (vlib_main_t * vm,
 	      /* Push new NSH header */
 	      vlib_buffer_advance(b0, -(word)encap_hdr_len0);
 	      hdr0 = vlib_buffer_get_current(b0);
-	      clib_memcpy(hdr0, encap_hdr0, (word)encap_hdr_len0);
+	      nsh_header_host_to_net(hdr0, encap_hdr0);
 
 	      goto trace0;
 	    }
@@ -1125,7 +1139,7 @@ nsh_input_map (vlib_main_t * vm,
 	      /* Push new NSH header */
 	      vlib_buffer_advance(b0, -(word)encap_hdr_len0);
 	      hdr0 = vlib_buffer_get_current(b0);
-	      clib_memcpy(hdr0, encap_hdr0, (word)encap_hdr_len0);
+	      nsh_header_host_to_net(hdr0, encap_hdr0);
 	    }
 
         trace0: b0->error = error0 ? node->errors[error0] : 0;
@@ -1181,7 +1195,7 @@ nsh_input_map (vlib_main_t * vm,
               /* Push new NSH header */
               vlib_buffer_advance(b1, -(word)encap_hdr_len1);
               hdr1 = vlib_buffer_get_current(b1);
-              clib_memcpy(hdr1, encap_hdr1, (word)encap_hdr_len1);
+              nsh_header_host_to_net(hdr1, encap_hdr1);
 
               goto trace1;
             }
@@ -1191,7 +1205,7 @@ nsh_input_map (vlib_main_t * vm,
               /* Push new NSH header */
               vlib_buffer_advance(b1, -(word)encap_hdr_len1);
               hdr1 = vlib_buffer_get_current(b1);
-              clib_memcpy(hdr1, encap_hdr1, (word)encap_hdr_len1);
+              nsh_header_host_to_net(hdr1, encap_hdr1);
             }
 
 	trace1: b1->error = error1 ? node->errors[error1] : 0;
@@ -1312,7 +1326,7 @@ nsh_input_map (vlib_main_t * vm,
 	      /* Push new NSH header */
 	      vlib_buffer_advance(b0, -(word)encap_hdr_len0);
 	      hdr0 = vlib_buffer_get_current(b0);
-	      clib_memcpy(hdr0, encap_hdr0, (word)encap_hdr_len0);
+	      nsh_header_host_to_net(hdr0, encap_hdr0);
 
 	      goto trace00;
 	    }
@@ -1322,7 +1336,7 @@ nsh_input_map (vlib_main_t * vm,
 	      /* Push new NSH header */
 	      vlib_buffer_advance(b0, -(word)encap_hdr_len0);
 	      hdr0 = vlib_buffer_get_current(b0);
-	      clib_memcpy(hdr0, encap_hdr0, (word)encap_hdr_len0);
+	      nsh_header_host_to_net(hdr0, encap_hdr0);
 	    }
 
 	  trace00: b0->error = error0 ? node->errors[error0] : 0;
