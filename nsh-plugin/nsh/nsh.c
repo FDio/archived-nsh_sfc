@@ -104,18 +104,10 @@
   _(NSH_ADD_DEL_MAP, nsh_add_del_map)           \
   _(NSH_MAP_DUMP, nsh_map_dump)
 
-clib_error_t *
-vlib_plugin_register (vlib_main_t * vm, vnet_plugin_handoff_t * h,
-                      int from_early_init)
-{
-  nsh_main_t * nm = &nsh_main;
-  clib_error_t * error = 0;
-
-  nm->vlib_main = vm;
-  nm->vnet_main = h->vnet_main;
-
-  return error;
-}
+/* *INDENT-OFF* */
+VLIB_PLUGIN_REGISTER () = {
+};
+/* *INDENT-ON* */
 
 typedef struct {
   nsh_header_t nsh_header;
