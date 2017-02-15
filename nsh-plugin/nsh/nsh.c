@@ -190,6 +190,11 @@ u8 * format_nsh_map (u8 * s, va_list * args)
 	s = format (s, "encapped by VXLAN6 intf: %d", map->sw_if_index);
 	break;
       }
+    case NSH_NODE_NEXT_DECAP_ETH_INPUT:
+      {
+	s = format (s, "encap-none");
+	break;
+      }
     default:
       s = format (s, "only GRE and VXLANGPE support in this rev");
     }
@@ -433,7 +438,7 @@ nsh_add_del_map_command_fn (vlib_main_t * vm,
     else if (unformat (line_input, "encap-vxlan6-intf %d", &sw_if_index))
       next_node = NSH_NODE_NEXT_ENCAP_VXLAN6;
     else if (unformat (line_input, "encap-none"))
-      next_node = NSH_NODE_NEXT_DROP; // Once moved to NSHSFC see nsh.h:foreach_nsh_input_next to handle this case
+      next_node = NSH_NODE_NEXT_DECAP_ETH_INPUT;
     else
       return clib_error_return (0, "parse error: '%U'",
                                 format_unformat_error, line_input);

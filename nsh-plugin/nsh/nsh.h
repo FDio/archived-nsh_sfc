@@ -142,9 +142,9 @@ typedef enum {
   _(ENCAP_VXLANGPE, "vxlan-gpe-encap" ) \
   _(ENCAP_VXLAN4, "vxlan4-encap" )  \
   _(ENCAP_VXLAN6, "vxlan6-encap" )  \
+  _(DECAP_ETH_INPUT, "ethernet-input" ) \
 /* /\* TODO once moved to Project:NSH_SFC *\/ */
   /* _(ENCAP_ETHERNET, "*** TX TO ETHERNET ***")   \ */
-/*   _(DECAP_ETHERNET_LOOKUP, "ethernet-input" )	\ */
 /*   _(DECAP_IP4_INPUT,  "ip4-input") \ */
 /*   _(DECAP_IP6_INPUT,  "ip6-input" ) \  */
 
