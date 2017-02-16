@@ -14,3 +14,10 @@ missing
 *~
 cscope*
 
+java/m4/libtool.m4
+java/m4/ltoptions.m4
+java/m4/ltsugar.m4
+java/m4/ltversion.m4
+java/m4/lt~obsolete.m4
+packaging/deb/debian/debhelper-build-stamp
+
