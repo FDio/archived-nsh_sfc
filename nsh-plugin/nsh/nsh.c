@@ -583,7 +583,7 @@ nsh_add_del_map_command_fn (vlib_main_t * vm,
       next_node = NSH_NODE_NEXT_ENCAP_VXLAN4;
     else if (unformat (line_input, "encap-vxlan6-intf %d", &sw_if_index))
       next_node = NSH_NODE_NEXT_ENCAP_VXLAN6;
-    else if (unformat (line_input, "encap-none"))
+    else if (unformat (line_input, "encap-none %d", &sw_if_index))
       next_node = NSH_NODE_NEXT_DECAP_ETH_INPUT;
     else
       return clib_error_return (0, "parse error: '%U'",
@@ -602,7 +602,7 @@ nsh_add_del_map_command_fn (vlib_main_t * vm,
     return clib_error_return (0, "nsh_action required: swap|push|pop.");
 
   if (next_node == ~0)
-    return clib_error_return (0, "must specific action: [encap-gre-intf <nn> | encap-vxlan-gpe-intf <nn> | encap-lisp-gpe-intf <nn> | encap-none]");
+    return clib_error_return (0, "must specific action: [encap-gre-intf <nn> | encap-vxlan-gpe-intf <nn> | encap-lisp-gpe-intf <nn> | encap-none <rx_sw_if_index>]");
 
   memset (a, 0, sizeof (*a));
 
@@ -1611,6 +1611,7 @@ nsh_input_map (vlib_main_t * vm,
 	      /* Manipulate MD2 */
               if(PREDICT_FALSE(hdr0->md_type == 2))
         	{
+	          vnet_buffer(b0)->sw_if_index[VLIB_RX] = map0->sw_if_index;
         	  nsh_md2_decap(b0, hdr0, header_len0, &next0, NSH_NODE_NEXT_DROP);
         	  if (PREDICT_FALSE(next0 == NSH_NODE_NEXT_DROP))
         	    {
@@ -1713,6 +1714,7 @@ nsh_input_map (vlib_main_t * vm,
 	      /* Manipulate MD2 */
               if(PREDICT_FALSE(hdr1->md_type == 2))
         	{
+	          vnet_buffer(b1)->sw_if_index[VLIB_RX] = map1->sw_if_index;
         	  nsh_md2_decap(b1, hdr1, header_len1, &next1, NSH_NODE_NEXT_DROP);
         	  if (PREDICT_FALSE(next1 == NSH_NODE_NEXT_DROP))
         	    {
@@ -1881,6 +1883,7 @@ nsh_input_map (vlib_main_t * vm,
 	      /* Manipulate MD2 */
               if(PREDICT_FALSE(hdr0->md_type == 2))
         	{
+	          vnet_buffer(b0)->sw_if_index[VLIB_RX] = map0->sw_if_index;
         	  nsh_md2_decap(b0, hdr0, header_len0, &next0, NSH_NODE_NEXT_DROP);
         	  if (PREDICT_FALSE(next0 == NSH_NODE_NEXT_DROP))
         	    {
