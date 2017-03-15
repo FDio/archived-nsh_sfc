@@ -23,10 +23,7 @@
 #include <jni.h>
 
 typedef struct {
-    /* Base message index for the nsh plugin */
-	u16 msg_id_base;
-
-    /* Pointer to shared memory queue */
+  /* Pointer to shared memory queue */
     unix_shared_memory_queue_t * vl_input_queue;
 
     /* VPP api client index */

@@ -16,15 +16,15 @@ ACLOCAL_AMFLAGS = -I m4
 AM_CFLAGS = -Wall 
 
 
-noinst_PROGRAMS = 
+noinst_PROGRAMS =
 BUILT_SOURCES =
-bin_PROGRAMS = 
-CLEANFILES = 
+bin_PROGRAMS =
+CLEANFILES =
 
 nobase_include_HEADERS = jvpp/io_fd_vpp_jvpp_nsh_JVppNshImpl.h
 
 jarfile_jnsh_sfc = jnsh_sfc-$(PACKAGE_VERSION).jar
-java_packagedir = io/fd/nsh_sfc/jvpp
+java_packagedir = io/fd/vpp/jvpp/nsh
 java_gendir = jvpp/src/main/java
 resourcesdir = jvpp/src/main/resources
 api_file=$(srcdir)/../nsh/nsh.api
@@ -36,23 +36,18 @@ lib_LTLIBRARIES = libjvpp_nsh.la
 libjvpp_nsh_la_SOURCES = $(srcdir)/../java/nsh.api.h jvpp/jvpp_nsh.c jvpp/io_fd_vpp_jvpp_nsh_JVppNshImpl.h
 
 libjvpp_nsh_la_LIBADD = -lvlibmemoryclient -lvlibapi -lsvm -lvppinfra \
-	              -lpthread -lm -lrt
-libjvpp_nsh_la_LIBAD = libjvpp_common.la
+	              -lpthread -lm -lrt -ljvpp_common
 libjvpp_nsh_la_LDFLAGS = -module
 libjvpp_nsh_la_CPPFLAGS = -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux -I../ -I$(srcdir)/../
 
 BUILT_SOURCES = jvpp/io_fd_vpp_jvpp_nsh_JVppNshImpl.h
 
 jvpp/io_fd_vpp_jvpp_nsh_JVppNshImpl.h: nsh.api.json
-	dir=`pwd`;						\
-	mkdir -p $(java_gendir)/$(java_packagedir); 		\
-	cd $(java_gendir)/$(java_packagedir);			\
-	mkdir -p dto future callfacade callback notification test; 	\
-	cd -;							\
 	$(jvpp_gen) -i nsh.api.json --plugin_name nsh --root_dir $(java_gendir)/$(java_packagedir)  > /dev/null;  \
-	mv -f $(java_gendir)/$(java_packagedir)/target/io/fd/vpp/jvpp/nsh/ $(java_gendir)/$(java_packagedir)/;    \
-	mv -f $(java_gendir)/$(java_packagedir)/jvpp_nsh_gen.h jvpp/jvpp_nsh_gen.h;			\
+	mv -f $(java_gendir)/$(java_packagedir)/target/io/fd/vpp/jvpp/nsh/* $(java_gendir)/$(java_packagedir)/;  \
+	mv -f $(java_gendir)/$(java_packagedir)/jvpp_nsh_gen.h jvpp/jvpp_nsh_gen.h;							\
 	cp $(srcdir)/pom.xml jvpp/;				\
+	mkdir -p $(java_gendir)/$(java_packagedir)/test;
 	cp $(srcdir)/jvpp/test/*.java $(java_gendir)/$(java_packagedir)/test/;				\
 	cd jvpp;				\
 	mvn $${MAVEN_SETTINGS_OPTIONS} -v;	\
@@ -60,12 +55,12 @@ jvpp/io_fd_vpp_jvpp_nsh_JVppNshImpl.h: nsh.api.json
 
 $(jarfile_jnsh_sfc): libjvpp_nsh.la
 	mkdir -p $(resourcesdir);				\
-	cp .libs/libjvpp_nsh.so.0.0.0 $(resourcesdir);				\
+	cp .libs/libjvpp_nsh.so $(resourcesdir)/libjvpp_nsh.so;	\
 	cd jvpp;				\
 	mvn $${MAVEN_SETTINGS_OPTIONS} -v;	\
 	mvn $${MAVEN_SETTINGS_OPTIONS} package;
 
-nsh.api.json:
+nsh.api.json: $(api_file)
 	@echo "  jNsh_sfc API"; \
 	$(CC) $(CPPFLAGS) -E -P -C -x c $^ \
 	| vppapigen --input $(api_file) --json $@

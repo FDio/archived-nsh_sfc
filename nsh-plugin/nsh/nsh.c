@@ -51,6 +51,10 @@
 #include <vpp-api/nsh_all_api_h.h>
 #undef vl_api_version
 
+#define vl_msg_name_crc_list
+#include <vpp-api/nsh_all_api_h.h>
+#undef vl_msg_name_crc_list
+
 /*
  * A handy macro to set up a message reply.
  * Assumes that the following variables are available:
@@ -1378,7 +1382,7 @@ VLIB_CLI_COMMAND (show_nsh_entry_command, static) = {
 static clib_error_t *
 nsh_plugin_api_hookup (vlib_main_t *vm)
 {
-  nsh_main_t * nm = &nsh_main;
+  nsh_main_t * nm __attribute__ ((unused)) = &nsh_main;
 #define _(N,n)                                                  \
   vl_msg_api_set_handlers((VL_API_##N + nm->msg_id_base),	\
 			  #n,					\
@@ -1391,6 +1395,15 @@ nsh_plugin_api_hookup (vlib_main_t *vm)
 #undef _
 
   return 0;
+}
+
+static void
+setup_message_id_table (nsh_main_t * nm, api_main_t * am)
+{
+#define _(id,n,crc) \
+  vl_msg_api_add_msg_name_crc (am, #n "_" #crc, id + nm->msg_id_base);
+  foreach_vl_msg_name_crc_nsh;
+#undef _
 }
 
 always_inline void
@@ -2303,6 +2316,9 @@ clib_error_t *nsh_init (vlib_main_t *vm)
     ((char *) name, VL_MSG_FIRST_AVAILABLE);
 
   error = nsh_plugin_api_hookup (vm);
+
+  /* Add our API messages to the global name_crc hash table */
+  setup_message_id_table (nm, &api_main);
 
   /* Add dispositions to nodes that feed nsh-input */
   //alagalah - validate we don't really need to use the node value
