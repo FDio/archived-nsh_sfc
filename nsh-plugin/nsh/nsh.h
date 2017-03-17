@@ -66,7 +66,13 @@ typedef struct {
   u32 mapped_nsp_nsi;
   /* NSH Header action: swap, push and pop */
   u32 nsh_action;
+
+  /** vnet intfc hw_if_index */
+  u32 nsh_hw_if;
   /* vnet intfc sw_if_index */
+  u32 nsh_sw_if;
+
+  /* encap if index */
   u32 sw_if_index;
   u32 next_node;
 } nsh_map_t;
@@ -111,6 +117,11 @@ typedef struct {
   /* hash lookup nsh_proxy by key */
   uword * nsh_proxy_session_by_key;
 
+  /** Free vlib hw_if_indices */
+  u32 * free_nsh_tunnel_hw_if_indices;
+  /** Mapping from sw_if_index to tunnel index */
+  u32 * tunnel_index_by_sw_if_index;
+
   /* vector of nsh_option_map */
   nsh_option_map_t * nsh_option_mappings;
   /* hash lookup nsh_option_map by key */
@@ -141,6 +152,8 @@ typedef struct {
 } nsh_main_t;
 
 nsh_main_t nsh_main;
+
+extern vlib_node_registration_t nsh_aware_vnf_proxy_node;
 
 u8 * format_nsh_input_map_trace (u8 * s, va_list * args);
 u8 * format_nsh_header_with_length (u8 * s, va_list * args);
@@ -200,7 +213,10 @@ typedef enum {
   NSH_INPUT_TYPE,
   NSH_PROXY_TYPE,
   NSH_CLASSIFIER_TYPE,
+  NSH_AWARE_VNF_PROXY_TYPE,
 } nsh_entity_type;
+
+#define VNET_SW_INTERFACE_FLAG_ADMIN_DOWN 0
 
 /* md2 class and type definition */
 #define NSH_MD2_IOAM_CLASS 0x9

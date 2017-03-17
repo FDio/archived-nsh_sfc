@@ -392,6 +392,81 @@ u8 * format_nsh_node_map_trace (u8 * s, va_list * args)
 }
 
 /**
+ * @brief Naming for NSH tunnel
+ *
+ * @param *s formatting string
+ * @param *args
+ *
+ * @return *s formatted string
+ *
+ */
+static u8 * format_nsh_name (u8 * s, va_list * args)
+{
+  u32 dev_instance = va_arg (*args, u32);
+  return format (s, "nsh_tunnel%d", dev_instance);
+}
+
+/**
+ * @brief CLI function for NSH admin up/down
+ *
+ * @param *vnm
+ * @param nsh_hw_if
+ * @param flag
+ *
+ * @return *rc
+ *
+ */
+static clib_error_t *
+nsh_interface_admin_up_down (vnet_main_t * vnm, u32 nsh_hw_if, u32 flags)
+{
+  if (flags & VNET_SW_INTERFACE_FLAG_ADMIN_UP)
+    vnet_hw_interface_set_flags (vnm, nsh_hw_if, VNET_HW_INTERFACE_FLAG_LINK_UP);
+  else
+    vnet_hw_interface_set_flags (vnm, nsh_hw_if, 0);
+
+  return 0;
+}
+
+static uword dummy_interface_tx (vlib_main_t * vm,
+                                 vlib_node_runtime_t * node,
+                                 vlib_frame_t * frame)
+{
+  clib_warning ("you shouldn't be here, leaking buffers...");
+  return frame->n_vectors;
+}
+
+VNET_DEVICE_CLASS (nsh_device_class,static) = {
+  .name = "NSH",
+  .format_device_name = format_nsh_name,
+  .tx_function = dummy_interface_tx,
+  .admin_up_down_function = nsh_interface_admin_up_down,
+};
+
+/**
+ * @brief Formatting function for tracing VXLAN GPE with length
+ *
+ * @param *s
+ * @param *args
+ *
+ * @return *s
+ *
+ */
+static u8 * format_nsh_tunnel_with_length (u8 * s, va_list * args)
+{
+  u32 dev_instance = va_arg (*args, u32);
+  s = format (s, "unimplemented dev %u", dev_instance);
+  return s;
+}
+
+VNET_HW_INTERFACE_CLASS (nsh_hw_class) = {
+  .name = "NSH",
+  .format_header = format_nsh_tunnel_with_length,
+  .build_rewrite = default_build_rewrite,
+  .flags = VNET_HW_INTERFACE_CLASS_FLAG_P2P,
+};
+
+
+/**
  * Action function to add or del an nsh map.
  * Shared by both CLI and binary API
  **/
@@ -399,11 +474,15 @@ u8 * format_nsh_node_map_trace (u8 * s, va_list * args)
 int nsh_add_del_map (nsh_add_del_map_args_t *a, u32 * map_indexp)
 {
   nsh_main_t * nm = &nsh_main;
+  vnet_main_t * vnm = nm->vnet_main;
   nsh_map_t *map = 0;
   u32 key, *key_copy;
   uword * entry;
   hash_pair_t *hp;
   u32 map_index = ~0;
+  vnet_hw_interface_t * hi;
+  u32 nsh_hw_if = ~0;
+  u32 nsh_sw_if = ~0;
 
   /* net order, so data plane could use nsh header to lookup directly */
   key = clib_host_to_net_u32(a->map.nsp_nsi);
@@ -433,6 +512,32 @@ int nsh_add_del_map (nsh_add_del_map_args_t *a, u32 * map_indexp)
       hash_set_mem (nm->nsh_mapping_by_key, key_copy,
                     map - nm->nsh_mappings);
       map_index = map - nm->nsh_mappings;
+
+      if (vec_len (nm->free_nsh_tunnel_hw_if_indices) > 0)
+        {
+          nsh_hw_if = nm->free_nsh_tunnel_hw_if_indices
+            [vec_len (nm->free_nsh_tunnel_hw_if_indices)-1];
+          _vec_len (nm->free_nsh_tunnel_hw_if_indices) -= 1;
+
+          hi = vnet_get_hw_interface (vnm, nsh_hw_if);
+          hi->dev_instance = map_index;
+          hi->hw_instance = hi->dev_instance;
+        }
+      else
+        {
+          nsh_hw_if = vnet_register_interface
+            (vnm, nsh_device_class.index, map_index, nsh_hw_class.index, map_index);
+          hi = vnet_get_hw_interface (vnm, nsh_hw_if);
+          hi->output_node_index = nsh_aware_vnf_proxy_node.index;
+        }
+
+      map->nsh_hw_if = nsh_hw_if;
+      map->nsh_sw_if = nsh_sw_if = hi->sw_if_index;
+      vec_validate_init_empty (nm->tunnel_index_by_sw_if_index, nsh_sw_if, ~0);
+      nm->tunnel_index_by_sw_if_index[nsh_sw_if] = key;
+
+      vnet_sw_interface_set_flags (vnm, hi->sw_if_index,
+                                   VNET_SW_INTERFACE_FLAG_ADMIN_UP);
     }
   else
     {
@@ -440,6 +545,12 @@ int nsh_add_del_map (nsh_add_del_map_args_t *a, u32 * map_indexp)
 	return -2 ; //TODO API_ERROR_NO_SUCH_ENTRY;
 
       map = pool_elt_at_index (nm->nsh_mappings, entry[0]);
+
+      vnet_sw_interface_set_flags (vnm, map->nsh_sw_if,
+				   VNET_SW_INTERFACE_FLAG_ADMIN_DOWN);
+      vec_add1 (nm->free_nsh_tunnel_hw_if_indices, map->nsh_sw_if);
+      nm->tunnel_index_by_sw_if_index[map->nsh_sw_if] = ~0;
+
       hp = hash_get_pair (nm->nsh_mapping_by_key, &key);
       key_copy = (void *)(hp->key);
       hash_unset_mem (nm->nsh_mapping_by_key, &key);
@@ -1814,6 +1925,8 @@ nsh_input_map (vlib_main_t * vm,
 	  nsh_proxy_session_by_key_t key0;
 	  uword *p0;
 	  nsh_proxy_session_t *proxy0 = 0;
+	  u32 sw_if_index0 = 0;
+	  ethernet_header_t dummy_eth0;
 
 	  bi0 = from[0];
 	  to_next[0] = bi0;
@@ -1834,6 +1947,21 @@ nsh_input_map (vlib_main_t * vm,
           else if(node_type == NSH_CLASSIFIER_TYPE)
             {
               nsp_nsi0 = vnet_buffer(b0)->l2_classify.opaque_index;
+            }
+          else if(node_type == NSH_AWARE_VNF_PROXY_TYPE)
+            {
+	      /* Push dummy Eth header */
+              memset(&dummy_eth0.dst_address[0], 0x11223344, 4);
+              memset(&dummy_eth0.dst_address[4], 0x5566, 2);
+              memset(&dummy_eth0.src_address[0], 0x778899aa, 4);
+              memset(&dummy_eth0.src_address[4], 0xbbcc, 2);
+              dummy_eth0.type = 0x0800;
+	      vlib_buffer_advance(b0, -(word)sizeof(ethernet_header_t));
+	      hdr0 = vlib_buffer_get_current(b0);
+	      clib_memcpy(hdr0, &dummy_eth0, (word)sizeof(ethernet_header_t));
+
+              sw_if_index0 = vnet_buffer(b0)->sw_if_index[VLIB_TX];
+              nsp_nsi0 = nm->tunnel_index_by_sw_if_index[sw_if_index0];
             }
           else
 	    {
@@ -2025,6 +2153,24 @@ nsh_classifier (vlib_main_t * vm, vlib_node_runtime_t * node,
   return nsh_input_map (vm, node, from_frame, NSH_CLASSIFIER_TYPE);
 }
 
+/**
+ * @brief Graph processing dispatch function for NSH-AWARE-VNF-PROXY
+ *
+ * @node nsh_aware_vnf_proxy
+ * @param *vm
+ * @param *node
+ * @param *from_frame
+ *
+ * @return from_frame->n_vectors
+ *
+ */
+static uword
+nsh_aware_vnf_proxy (vlib_main_t * vm, vlib_node_runtime_t * node,
+                     vlib_frame_t * from_frame)
+{
+  return nsh_input_map (vm, node, from_frame, NSH_AWARE_VNF_PROXY_TYPE);
+}
+
 static char * nsh_node_error_strings[] = {
 #define _(sym,string) string,
   foreach_nsh_node_error
@@ -2100,6 +2246,28 @@ VLIB_REGISTER_NODE (nsh_classifier_node) = {
 
 VLIB_NODE_FUNCTION_MULTIARCH (nsh_classifier_node, nsh_classifier);
 
+/* register nsh-aware-vnf-proxy node */
+VLIB_REGISTER_NODE (nsh_aware_vnf_proxy_node) = {
+  .function = nsh_aware_vnf_proxy,
+  .name = "nsh-aware-vnf-proxy",
+  .vector_size = sizeof (u32),
+  .format_trace = format_nsh_node_map_trace,
+  .format_buffer = format_nsh_header,
+  .type = VLIB_NODE_TYPE_INTERNAL,
+
+  .n_errors = ARRAY_LEN(nsh_node_error_strings),
+  .error_strings = nsh_node_error_strings,
+
+  .n_next_nodes = NSH_NODE_N_NEXT,
+
+  .next_nodes = {
+#define _(s,n) [NSH_NODE_NEXT_##s] = n,
+    foreach_nsh_node_next
+#undef _
+  },
+};
+
+VLIB_NODE_FUNCTION_MULTIARCH (nsh_aware_vnf_proxy_node, nsh_aware_vnf_proxy);
 
 clib_error_t *nsh_init (vlib_main_t *vm)
 {
@@ -2140,13 +2308,16 @@ clib_error_t *nsh_init (vlib_main_t *vm)
   //alagalah - validate we don't really need to use the node value
   next_node = vlib_node_add_next (vm, vxlan4_gpe_input_node.index, nsh_input_node.index);
   vlib_node_add_next (vm, vxlan4_gpe_input_node.index, nsh_proxy_node.index);
+  vlib_node_add_next (vm, vxlan4_gpe_input_node.index, nsh_aware_vnf_proxy_node.index);
   vxlan_gpe_register_decap_protocol (VXLAN_GPE_PROTOCOL_NSH, next_node);
 
   vlib_node_add_next (vm, vxlan6_gpe_input_node.index, nsh_input_node.index);
   vlib_node_add_next (vm, vxlan6_gpe_input_node.index, nsh_proxy_node.index);
+  vlib_node_add_next (vm, vxlan6_gpe_input_node.index, nsh_aware_vnf_proxy_node.index);
 
   vlib_node_add_next (vm, gre_input_node.index, nsh_input_node.index);
   vlib_node_add_next (vm, gre_input_node.index, nsh_proxy_node.index);
+  vlib_node_add_next (vm, gre_input_node.index, nsh_aware_vnf_proxy_node.index);
 
   /* Add NSH-Proxy support */
   vlib_node_add_next (vm, vxlan4_input_node.index, nsh_proxy_node.index);
