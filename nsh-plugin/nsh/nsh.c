@@ -234,10 +234,6 @@ nsh_md2_unregister_option (u16 class,
   return (0);
 }
 
-typedef struct {
-   u8 trace_data[256];
-} nsh_input_trace_t;
-
 /* format from network order */
 u8 * format_nsh_header (u8 * s, va_list * args)
 {
@@ -507,6 +503,7 @@ int nsh_add_del_map (nsh_add_del_map_args_t *a, u32 * map_indexp)
       map->mapped_nsp_nsi = a->map.mapped_nsp_nsi;
       map->nsh_action = a->map.nsh_action;
       map->sw_if_index = a->map.sw_if_index;
+      map->rx_sw_if_index = a->map.rx_sw_if_index;
       map->next_node = a->map.next_node;
 
 
@@ -666,6 +663,7 @@ nsh_add_del_map_command_fn (vlib_main_t * vm,
   int nsh_action_set = 0;
   u32 next_node = ~0;
   u32 sw_if_index = ~0; // temporary requirement to get this moved over to NSHSFC
+  u32 rx_sw_if_index = ~0; // temporary requirement to get this moved over to NSHSFC
   nsh_add_del_map_args_t _a, * a = &_a;
   u32 map_index;
   int rv;
@@ -698,7 +696,7 @@ nsh_add_del_map_command_fn (vlib_main_t * vm,
       next_node = NSH_NODE_NEXT_ENCAP_VXLAN4;
     else if (unformat (line_input, "encap-vxlan6-intf %d", &sw_if_index))
       next_node = NSH_NODE_NEXT_ENCAP_VXLAN6;
-    else if (unformat (line_input, "encap-none %d", &sw_if_index))
+    else if (unformat (line_input, "encap-none %d %d", &sw_if_index, &rx_sw_if_index))
       next_node = NSH_NODE_NEXT_DECAP_ETH_INPUT;
     else
       return clib_error_return (0, "parse error: '%U'",
@@ -717,7 +715,7 @@ nsh_add_del_map_command_fn (vlib_main_t * vm,
     return clib_error_return (0, "nsh_action required: swap|push|pop.");
 
   if (next_node == ~0)
-    return clib_error_return (0, "must specific action: [encap-gre-intf <nn> | encap-vxlan-gpe-intf <nn> | encap-lisp-gpe-intf <nn> | encap-none <rx_sw_if_index>]");
+    return clib_error_return (0, "must specific action: [encap-gre-intf <nn> | encap-vxlan-gpe-intf <nn> | encap-lisp-gpe-intf <nn> | encap-none <tx_sw_if_index> <rx_sw_if_index>]");
 
   memset (a, 0, sizeof (*a));
 
@@ -727,6 +725,7 @@ nsh_add_del_map_command_fn (vlib_main_t * vm,
   a->map.mapped_nsp_nsi = (mapped_nsp<< NSH_NSP_SHIFT) | mapped_nsi;
   a->map.nsh_action = nsh_action;
   a->map.sw_if_index = sw_if_index;
+  a->map.rx_sw_if_index = rx_sw_if_index;
   a->map.next_node = next_node;
 
   rv = nsh_add_del_map(a, &map_index);
@@ -793,6 +792,7 @@ static void vl_api_nsh_add_del_map_t_handler
   a->map.mapped_nsp_nsi = ntohl(mp->mapped_nsp_nsi);
   a->map.nsh_action = ntohl(mp->nsh_action);
   a->map.sw_if_index = ntohl(mp->sw_if_index);
+  a->map.rx_sw_if_index = ntohl(mp->rx_sw_if_index);
   a->map.next_node = ntohl(mp->next_node);
 
   rv = nsh_add_del_map (a, &map_index);
@@ -1309,6 +1309,7 @@ static void send_nsh_map_details
     rmp->mapped_nsp_nsi = htonl(t->mapped_nsp_nsi);
     rmp->nsh_action = htonl(t->nsh_action);
     rmp->sw_if_index = htonl(t->sw_if_index);
+    rmp->rx_sw_if_index = htonl(t->rx_sw_if_index);
     rmp->next_node = htonl(t->next_node);
 
     rmp->context = context;
@@ -1540,7 +1541,7 @@ next_tlv_md2:
 always_inline void
 nsh_md2_decap (vlib_buffer_t * b,
                nsh_base_header_t * hdr,
-	       u32 header_len,
+	       u32 *header_len,
 	       u32 * next,
 	       u32 drop_node_val)
 {
@@ -1552,7 +1553,7 @@ nsh_md2_decap (vlib_buffer_t * b,
 
   /* Populate the NSH Header */
   opt0 = (nsh_md2_data_t *)(hdr + 1);
-  limit0 = (nsh_md2_data_t *) ((u8 *) hdr + header_len);
+  limit0 = (nsh_md2_data_t *) ((u8 *) hdr + *header_len);
 
   /* Scan the set of variable metadata, process ones that we understand */
   while (opt0 < limit0)
@@ -1575,6 +1576,8 @@ nsh_md2_decap (vlib_buffer_t * b,
       /* round to 4-byte */
       option_len = ( (opt0->length+3)>>2 ) << 2;
       opt0 = (nsh_md2_data_t *) (((u8 *) opt0) + sizeof (nsh_md2_data_t) + option_len);
+      *next = (nm->decap_v4_next_override) ? (nm->decap_v4_next_override) : (*next);
+      *header_len = (nm->decap_v4_next_override) ? 0 : (*header_len);
     }
 
   return;
@@ -1735,13 +1738,13 @@ nsh_input_map (vlib_main_t * vm,
 	      /* Manipulate MD2 */
               if(PREDICT_FALSE(hdr0->md_type == 2))
         	{
-	          vnet_buffer(b0)->sw_if_index[VLIB_RX] = map0->sw_if_index;
-        	  nsh_md2_decap(b0, hdr0, header_len0, &next0, NSH_NODE_NEXT_DROP);
+        	  nsh_md2_decap(b0, hdr0, &header_len0, &next0, NSH_NODE_NEXT_DROP);
         	  if (PREDICT_FALSE(next0 == NSH_NODE_NEXT_DROP))
         	    {
         	      error0 = NSH_NODE_ERROR_INVALID_OPTIONS;
         	      goto trace0;
         	    }
+	          vnet_buffer(b0)->sw_if_index[VLIB_RX] = map0->rx_sw_if_index;
         	}
 
               /* Pop NSH header */
@@ -1838,13 +1841,13 @@ nsh_input_map (vlib_main_t * vm,
 	      /* Manipulate MD2 */
               if(PREDICT_FALSE(hdr1->md_type == 2))
         	{
-	          vnet_buffer(b1)->sw_if_index[VLIB_RX] = map1->sw_if_index;
-        	  nsh_md2_decap(b1, hdr1, header_len1, &next1, NSH_NODE_NEXT_DROP);
+        	  nsh_md2_decap(b1, hdr1, &header_len1, &next1, NSH_NODE_NEXT_DROP);
         	  if (PREDICT_FALSE(next1 == NSH_NODE_NEXT_DROP))
         	    {
         	      error1 = NSH_NODE_ERROR_INVALID_OPTIONS;
         	      goto trace1;
         	    }
+	          vnet_buffer(b1)->sw_if_index[VLIB_RX] = map0->rx_sw_if_index;
         	}
 
               /* Pop NSH header */
@@ -2024,13 +2027,13 @@ nsh_input_map (vlib_main_t * vm,
 	      /* Manipulate MD2 */
               if(PREDICT_FALSE(hdr0->md_type == 2))
         	{
-	          vnet_buffer(b0)->sw_if_index[VLIB_RX] = map0->sw_if_index;
-        	  nsh_md2_decap(b0, hdr0, header_len0, &next0, NSH_NODE_NEXT_DROP);
+        	  nsh_md2_decap(b0, hdr0, &header_len0, &next0, NSH_NODE_NEXT_DROP);
         	  if (PREDICT_FALSE(next0 == NSH_NODE_NEXT_DROP))
         	    {
         	      error0 = NSH_NODE_ERROR_INVALID_OPTIONS;
         	      goto trace00;
         	    }
+	          vnet_buffer(b0)->sw_if_index[VLIB_RX] = map0->rx_sw_if_index;
         	}
 
               /* Pop NSH header */
@@ -2281,6 +2284,15 @@ VLIB_REGISTER_NODE (nsh_aware_vnf_proxy_node) = {
 };
 
 VLIB_NODE_FUNCTION_MULTIARCH (nsh_aware_vnf_proxy_node, nsh_aware_vnf_proxy);
+
+void
+nsh_md2_set_next_ioam_export_override (uword next)
+{
+  nsh_main_t *hm = &nsh_main;
+  hm->decap_v4_next_override = next;
+  return;
+}
+
 
 clib_error_t *nsh_init (vlib_main_t *vm)
 {

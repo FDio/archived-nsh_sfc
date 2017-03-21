@@ -22,11 +22,15 @@ CPPFLAGS += -DDEBUG -g
 
 lib_LTLIBRARIES = nsh_plugin.la nsh_test_plugin.la
 nsh_plugin_la_SOURCES = nsh/nsh.c  \
+	nsh/nsh_pop.c \
 	vpp-api/nsh.api.h \
 	nsh-md2-ioam/nsh_md2_ioam.c \
 	nsh-md2-ioam/nsh_md2_ioam_trace.c \
 	nsh-md2-ioam/md2_ioam_transit.c \
-	nsh-md2-ioam/nsh_md2_ioam_api.c
+	nsh-md2-ioam/nsh_md2_ioam_api.c \
+	nsh-md2-ioam/export-nsh-md2-ioam/nsh_md2_ioam_export.c \
+	nsh-md2-ioam/export-nsh-md2-ioam/nsh_md2_ioam_export_thread.c \
+	nsh-md2-ioam/export-nsh-md2-ioam/nsh_md2_ioam_node.c
 
 nsh_plugin_la_LDFLAGS = -module
 

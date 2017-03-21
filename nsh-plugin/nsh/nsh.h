@@ -74,6 +74,7 @@ typedef struct {
 
   /* encap if index */
   u32 sw_if_index;
+  u32 rx_sw_if_index;
   u32 next_node;
 } nsh_map_t;
 
@@ -145,6 +146,7 @@ typedef struct {
   int (*pop_options[MAX_MD2_OPTIONS]) (vlib_buffer_t * b,
 				       nsh_tlv_header_t * opt);
   u8 *(*trace[MAX_MD2_OPTIONS]) (u8 * s, nsh_tlv_header_t * opt);
+  uword decap_v4_next_override;
 
   /* convenience */
   vlib_main_t * vlib_main;
@@ -154,6 +156,9 @@ typedef struct {
 nsh_main_t nsh_main;
 
 extern vlib_node_registration_t nsh_aware_vnf_proxy_node;
+typedef struct {
+   u8 trace_data[256];
+} nsh_input_trace_t;
 
 u8 * format_nsh_input_map_trace (u8 * s, va_list * args);
 u8 * format_nsh_header_with_length (u8 * s, va_list * args);
