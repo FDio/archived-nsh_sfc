@@ -1211,11 +1211,10 @@ static void vl_api_nsh_add_del_entry_t_handler
     }
   else if (mp->md_type == 2)
     {
-      vec_free(a->nsh_entry.tlvs_data);
       tlvs_len = mp->tlv_length;
       vec_validate_aligned (data, tlvs_len-1, CLIB_CACHE_LINE_BYTES);
 
-      clib_memcpy(data, a->nsh_entry.tlvs_data, tlvs_len);
+      clib_memcpy(data, mp->tlv, tlvs_len);
       a->nsh_entry.tlvs_data = data;
       a->nsh_entry.tlvs_len = tlvs_len;
     }
@@ -1254,7 +1253,8 @@ static void send_nsh_entry_details
       }
     else if (t->nsh_base.md_type == 2)
       {
-        /* TBD */
+	rmp->tlv_length = t->tlvs_len;
+	clib_memcpy(rmp->tlv, t->tlvs_data, t->tlvs_len);
       }
 
     rmp->context = context;
