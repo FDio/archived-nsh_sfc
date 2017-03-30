@@ -1,5 +1,5 @@
 
-AC_INIT(nsh_plugin, 17.04)
+AC_INIT(nsh_plugin, 17.07)
 AM_INIT_AUTOMAKE
 
 AC_PROG_LIBTOOL

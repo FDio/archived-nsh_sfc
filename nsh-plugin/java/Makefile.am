@@ -35,7 +35,7 @@ lib_LTLIBRARIES = libjvpp_nsh.la
 
 libjvpp_nsh_la_SOURCES = $(srcdir)/../java/nsh.api.h jvpp/jvpp_nsh.c jvpp/io_fd_vpp_jvpp_nsh_JVppNshImpl.h
 
-libjvpp_nsh_la_LIBADD = -lvlibmemoryclient -lvlibapi -lsvm -lvppinfra \
+libjvpp_nsh_la_LIBADD = -lvlibmemoryclient -lsvm -lvppinfra \
 	              -lpthread -lm -lrt -ljvpp_common
 libjvpp_nsh_la_LDFLAGS = -module
 libjvpp_nsh_la_CPPFLAGS = -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux -I../ -I$(srcdir)/../

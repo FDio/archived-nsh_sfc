@@ -1,23 +1,23 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
- 
+
   <groupId>io.fd.nsh_sfc</groupId>
   <artifactId>nsh-sfc</artifactId>
-  <version>17.04-SNAPSHOT</version>
+  <version>17.07-SNAPSHOT</version>
   <packaging>jar</packaging>
- 
+
   <name>nsh-sfc</name>
   <url>https://wiki.fd.io/view/NSH_SFC</url>
-  
+
   <dependencies>
     <dependency>
       <groupId>io.fd.vpp</groupId>
       <artifactId>jvpp-registry</artifactId>
-      <version>17.04-SNAPSHOT</version>
+      <version>17.07-SNAPSHOT</version>
     </dependency>
   </dependencies>
-  
+
   <build>
     <plugins>
       <plugin>
@@ -29,7 +29,7 @@
           <target>1.8</target>
         </configuration>
       </plugin>
-      
+
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-antrun-plugin</artifactId>
@@ -58,5 +58,5 @@
       </plugin>
     </plugins>
   </build>
-  
+
 </project>
