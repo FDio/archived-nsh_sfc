@@ -1654,7 +1654,7 @@ nsh_input_map (vlib_main_t * vm,
             }
           else if(node_type == NSH_CLASSIFIER_TYPE)
             {
-              nsp_nsi0 = vnet_buffer(b0)->l2_classify.opaque_index;
+              nsp_nsi0 = clib_host_to_net_u32(vnet_buffer(b0)->l2_classify.opaque_index);
             }
           else
 	    {
@@ -1686,7 +1686,7 @@ nsh_input_map (vlib_main_t * vm,
 	    }
           else if(node_type == NSH_CLASSIFIER_TYPE)
             {
-              nsp_nsi1 = vnet_buffer(b1)->l2_classify.opaque_index;
+              nsp_nsi1 = clib_host_to_net_u32(vnet_buffer(b1)->l2_classify.opaque_index);
             }
           else
 	    {
@@ -1959,7 +1959,7 @@ nsh_input_map (vlib_main_t * vm,
             }
           else if(node_type == NSH_CLASSIFIER_TYPE)
             {
-              nsp_nsi0 = vnet_buffer(b0)->l2_classify.opaque_index;
+              nsp_nsi0 = clib_host_to_net_u32(vnet_buffer(b0)->l2_classify.opaque_index);
             }
           else if(node_type == NSH_AWARE_VNF_PROXY_TYPE)
             {
