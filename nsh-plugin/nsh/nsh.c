@@ -342,9 +342,14 @@ u8 * format_nsh_map (u8 * s, va_list * args)
 
   switch (map->next_node)
     {
-    case NSH_NODE_NEXT_ENCAP_GRE:
+    case NSH_NODE_NEXT_ENCAP_GRE4:
       {
-	s = format (s, "encapped by GRE intf: %d", map->sw_if_index);
+	s = format (s, "encapped by GRE4 intf: %d", map->sw_if_index);
+	break;
+      }
+    case NSH_NODE_NEXT_ENCAP_GRE6:
+      {
+	s = format (s, "encapped by GRE6 intf: %d", map->sw_if_index);
 	break;
       }
     case NSH_NODE_NEXT_ENCAP_VXLANGPE:
@@ -686,8 +691,10 @@ nsh_add_del_map_command_fn (vlib_main_t * vm,
     else if (unformat (line_input, "nsh_action %U", unformat_nsh_action,
                        &nsh_action))
       nsh_action_set = 1;
-    else if (unformat (line_input, "encap-gre-intf %d", &sw_if_index))
-      next_node = NSH_NODE_NEXT_ENCAP_GRE;
+    else if (unformat (line_input, "encap-gre4-intf %d", &sw_if_index))
+      next_node = NSH_NODE_NEXT_ENCAP_GRE4;
+    else if (unformat (line_input, "encap-gre6-intf %d", &sw_if_index))
+      next_node = NSH_NODE_NEXT_ENCAP_GRE6;
     else if (unformat (line_input, "encap-vxlan-gpe-intf %d", &sw_if_index))
       next_node = NSH_NODE_NEXT_ENCAP_VXLANGPE;
     else if (unformat (line_input, "encap-lisp-gpe-intf %d", &sw_if_index))
@@ -773,7 +780,8 @@ VLIB_CLI_COMMAND (create_nsh_map_command, static) = {
   .path = "create nsh map",
   .short_help =
   "create nsh map nsp <nn> nsi <nn> [del] mapped-nsp <nn> mapped-nsi <nn> nsh_action [swap|push|pop] "
-  "[encap-gre-intf <nn> | encap-vxlan-gpe-intf <nn> | encap-lisp-gpe-intf <nn> | encap-none]\n",
+  "[encap-gre4-intf <nn> | encap-gre4-intf <nn> | encap-vxlan-gpe-intf <nn> | encap-lisp-gpe-intf <nn> "
+  " encap-vxlan4-intf <nn> | encap-vxlan6-intf <nn> | encap-none]\n",
   .function = nsh_add_del_map_command_fn,
 };
 

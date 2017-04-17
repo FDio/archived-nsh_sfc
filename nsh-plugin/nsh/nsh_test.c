@@ -273,8 +273,10 @@ static int api_nsh_add_del_map (vat_main_t * vam)
 	mapped_nsp_set = 1;
       else if (unformat (line_input, "mapped-nsi %d", &mapped_nsi))
 	mapped_nsi_set = 1;
-      else if (unformat (line_input, "encap-gre-intf %d", &sw_if_index))
-	next_node = NSH_NODE_NEXT_ENCAP_GRE;
+      else if (unformat (line_input, "encap-gre4-intf %d", &sw_if_index))
+	next_node = NSH_NODE_NEXT_ENCAP_GRE4;
+      else if (unformat (line_input, "encap-gre6-intf %d", &sw_if_index))
+	next_node = NSH_NODE_NEXT_ENCAP_GRE6;
       else if (unformat (line_input, "encap-vxlan-gpe-intf %d", &sw_if_index))
 	next_node = NSH_NODE_NEXT_ENCAP_VXLANGPE;
       else if (unformat (line_input, "encap-none"))

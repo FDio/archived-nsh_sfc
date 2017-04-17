@@ -190,7 +190,8 @@ typedef enum {
 
 #define foreach_nsh_node_next        \
   _(DROP, "error-drop")			\
-  _(ENCAP_GRE, "gre-input" )		\
+  _(ENCAP_GRE4, "gre4-input" )		\
+  _(ENCAP_GRE6, "gre6-input" )		\
   _(ENCAP_VXLANGPE, "vxlan-gpe-encap" ) \
   _(ENCAP_VXLAN4, "vxlan4-encap" )  \
   _(ENCAP_VXLAN6, "vxlan6-encap" )  \
