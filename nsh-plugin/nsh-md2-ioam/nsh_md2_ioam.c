@@ -265,8 +265,7 @@ u32 fib_path_get_resolving_interface (fib_node_index_t path_index);
 	    fib_table_entry_special_add (outer_fib_index,
 					 &tun_dst_pfx,
 					 FIB_SOURCE_RR,
-					 FIB_ENTRY_FLAG_NONE,
-					 ADJ_INDEX_INVALID);
+					 FIB_ENTRY_FLAG_NONE);
 	  t1->sibling_index =
 	    fib_entry_child_add (t1->fib_entry_index,
 				 hm->fib_entry_type, t1 - hm->dst_tunnels);

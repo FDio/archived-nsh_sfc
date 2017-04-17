@@ -2343,9 +2343,13 @@ clib_error_t *nsh_init (vlib_main_t *vm)
   vlib_node_add_next (vm, vxlan6_gpe_input_node.index, nsh_proxy_node.index);
   vlib_node_add_next (vm, vxlan6_gpe_input_node.index, nsh_aware_vnf_proxy_node.index);
 
-  vlib_node_add_next (vm, gre_input_node.index, nsh_input_node.index);
-  vlib_node_add_next (vm, gre_input_node.index, nsh_proxy_node.index);
-  vlib_node_add_next (vm, gre_input_node.index, nsh_aware_vnf_proxy_node.index);
+  vlib_node_add_next (vm, gre4_input_node.index, nsh_input_node.index);
+  vlib_node_add_next (vm, gre4_input_node.index, nsh_proxy_node.index);
+  vlib_node_add_next (vm, gre4_input_node.index, nsh_aware_vnf_proxy_node.index);
+
+  vlib_node_add_next (vm, gre6_input_node.index, nsh_input_node.index);
+  vlib_node_add_next (vm, gre6_input_node.index, nsh_proxy_node.index);
+  vlib_node_add_next (vm, gre6_input_node.index, nsh_aware_vnf_proxy_node.index);
 
   /* Add NSH-Proxy support */
   vlib_node_add_next (vm, vxlan4_input_node.index, nsh_proxy_node.index);
