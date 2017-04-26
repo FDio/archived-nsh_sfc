@@ -1764,6 +1764,8 @@ nsh_input_map (vlib_main_t * vm,
 
 	  if(PREDICT_FALSE(map0->nsh_action == NSH_ACTION_POP))
 	    {
+	      vnet_buffer(b0)->sw_if_index[VLIB_RX] = map0->nsh_sw_if;
+
 	      /* Manipulate MD2 */
               if(PREDICT_FALSE(hdr0->md_type == 2))
         	{
@@ -1867,6 +1869,8 @@ nsh_input_map (vlib_main_t * vm,
 
 	  if(PREDICT_FALSE(map1->nsh_action == NSH_ACTION_POP))
 	    {
+	      vnet_buffer(b1)->sw_if_index[VLIB_RX] = map1->nsh_sw_if;
+
 	      /* Manipulate MD2 */
               if(PREDICT_FALSE(hdr1->md_type == 2))
         	{
@@ -2053,6 +2057,8 @@ nsh_input_map (vlib_main_t * vm,
 
 	  if(PREDICT_FALSE(map0->nsh_action == NSH_ACTION_POP))
 	    {
+	      vnet_buffer(b0)->sw_if_index[VLIB_RX] = map0->nsh_sw_if;
+
 	      /* Manipulate MD2 */
               if(PREDICT_FALSE(hdr0->md_type == 2))
         	{
