@@ -377,6 +377,11 @@ u8 * format_nsh_map (u8 * s, va_list * args)
        s = format (s, "encapped by LISP GPE intf: %d", map->sw_if_index);
        break;
       }
+    case NSH_NODE_NEXT_ENCAP_ETHERNET:
+      {
+       s = format (s, "encapped by Ethernet intf: %d", map->sw_if_index);
+       break;
+      }
     default:
       s = format (s, "only GRE and VXLANGPE support in this rev");
     }
@@ -703,6 +708,8 @@ nsh_add_del_map_command_fn (vlib_main_t * vm,
       next_node = NSH_NODE_NEXT_ENCAP_VXLAN4;
     else if (unformat (line_input, "encap-vxlan6-intf %d", &sw_if_index))
       next_node = NSH_NODE_NEXT_ENCAP_VXLAN6;
+    else if (unformat (line_input, "encap-eth-intf %d", &sw_if_index))
+      next_node = NSH_NODE_NEXT_ENCAP_ETHERNET;
     else if (unformat (line_input, "encap-none %d %d", &sw_if_index, &rx_sw_if_index))
       next_node = NSH_NODE_NEXT_DECAP_ETH_INPUT;
     else
@@ -781,7 +788,7 @@ VLIB_CLI_COMMAND (create_nsh_map_command, static) = {
   .short_help =
   "create nsh map nsp <nn> nsi <nn> [del] mapped-nsp <nn> mapped-nsi <nn> nsh_action [swap|push|pop] "
   "[encap-gre4-intf <nn> | encap-gre4-intf <nn> | encap-vxlan-gpe-intf <nn> | encap-lisp-gpe-intf <nn> "
-  " encap-vxlan4-intf <nn> | encap-vxlan6-intf <nn> | encap-none]\n",
+  " encap-vxlan4-intf <nn> | encap-vxlan6-intf <nn>| encap-eth-intf <nn> | encap-none]\n",
   .function = nsh_add_del_map_command_fn,
 };
 
@@ -2399,6 +2406,9 @@ clib_error_t *nsh_init (vlib_main_t *vm)
   vlib_node_add_next (vm, ip4_classify_node.index, nsh_classifier_node.index);
   vlib_node_add_next (vm, ip6_classify_node.index, nsh_classifier_node.index);
   vlib_node_add_next (vm, l2_input_classify_node.index, nsh_classifier_node.index);
+
+  /* Add Ethernet+NSH support */
+  ethernet_register_input_type (vm, ETHERNET_TYPE_NSH, nsh_input_node.index);
 
   vec_free(name);
 

@@ -148,6 +148,10 @@ typedef struct {
   u8 *(*trace[MAX_MD2_OPTIONS]) (u8 * s, nsh_tlv_header_t * opt);
   uword decap_v4_next_override;
 
+  /* Feature arc indices */
+  u8 input_feature_arc_index;
+  u8 output_feature_arc_index;
+
   /* convenience */
   vlib_main_t * vlib_main;
   vnet_main_t * vnet_main;
@@ -156,6 +160,8 @@ typedef struct {
 nsh_main_t nsh_main;
 
 extern vlib_node_registration_t nsh_aware_vnf_proxy_node;
+extern vlib_node_registration_t nsh_output_node;
+
 typedef struct {
    u8 trace_data[256];
 } nsh_input_trace_t;
@@ -197,8 +203,7 @@ typedef enum {
   _(ENCAP_VXLAN6, "vxlan6-encap" )  \
   _(DECAP_ETH_INPUT, "ethernet-input" ) \
   _(ENCAP_LISP_GPE, "interface-output" )  \
-/* /\* TODO once moved to Project:NSH_SFC *\/ */
-  /* _(ENCAP_ETHERNET, "*** TX TO ETHERNET ***")   \ */
+  _(ENCAP_ETHERNET, "nsh-eth-output")   \
 /*   _(DECAP_IP4_INPUT,  "ip4-input") \ */
 /*   _(DECAP_IP6_INPUT,  "ip6-input" ) \  */
 

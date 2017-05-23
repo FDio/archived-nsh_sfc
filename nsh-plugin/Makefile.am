@@ -23,6 +23,7 @@ CPPFLAGS += -DDEBUG -g
 lib_LTLIBRARIES = nsh_plugin.la nsh_test_plugin.la
 nsh_plugin_la_SOURCES = nsh/nsh.c  \
 	nsh/nsh_pop.c \
+	nsh/nsh_output.c \
 	vpp-api/nsh.api.h \
 	nsh-md2-ioam/nsh_md2_ioam.c \
 	nsh-md2-ioam/nsh_md2_ioam_trace.c \
