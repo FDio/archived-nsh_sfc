@@ -71,7 +71,7 @@ nsh_output_inline (vlib_main_t * vm,
   nsh_main_t *nm;
 
   thread_index = vlib_get_thread_index();
-  error_node = vlib_node_get_runtime (vm, nsh_output_node.index);
+  error_node = vlib_node_get_runtime (vm, nsh_eth_output_node.index);
   from = vlib_frame_vector_args (from_frame);
   n_left_from = from_frame->n_vectors;
   next_index = node->cached_next_index;

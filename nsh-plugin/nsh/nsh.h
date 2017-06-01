@@ -160,7 +160,7 @@ typedef struct {
 nsh_main_t nsh_main;
 
 extern vlib_node_registration_t nsh_aware_vnf_proxy_node;
-extern vlib_node_registration_t nsh_output_node;
+extern vlib_node_registration_t nsh_eth_output_node;
 
 typedef struct {
    u8 trace_data[256];
