@@ -22,6 +22,7 @@
 #include <vnet/vxlan/vxlan.h>
 #include <vnet/vxlan-gpe/vxlan_gpe.h>
 #include <vnet/l2/l2_classify.h>
+#include <vnet/adj/adj.h>
 
 #include <vlibapi/api.h>
 #include <vlibmemory/api.h>
@@ -515,6 +516,7 @@ int nsh_add_del_map (nsh_add_del_map_args_t *a, u32 * map_indexp)
       map->sw_if_index = a->map.sw_if_index;
       map->rx_sw_if_index = a->map.rx_sw_if_index;
       map->next_node = a->map.next_node;
+      map->adj_index = a->map.adj_index;
 
 
       key_copy = clib_mem_alloc (sizeof (*key_copy));
@@ -661,6 +663,24 @@ static uword unformat_nsh_action (unformat_input_t * input, va_list * args)
   return 1;
 }
 
+static adj_index_t
+nsh_get_adj_by_sw_if_index(u32 sw_if_index)
+{
+  adj_index_t ai = ~0;
+
+  /* *INDENT-OFF* */
+  pool_foreach_index(ai, adj_pool,
+  ({
+      if (sw_if_index == adj_get_sw_if_index(ai))
+      {
+        return ai;
+      }
+  }));
+  /* *INDENT-ON* */
+
+  return ~0;
+}
+
 static clib_error_t *
 nsh_add_del_map_command_fn (vlib_main_t * vm,
 			    unformat_input_t * input,
@@ -672,6 +692,7 @@ nsh_add_del_map_command_fn (vlib_main_t * vm,
   int nsp_set = 0, nsi_set = 0, mapped_nsp_set = 0, mapped_nsi_set = 0;
   int nsh_action_set = 0;
   u32 next_node = ~0;
+  u32 adj_index = ~0;
   u32 sw_if_index = ~0; // temporary requirement to get this moved over to NSHSFC
   u32 rx_sw_if_index = ~0; // temporary requirement to get this moved over to NSHSFC
   nsh_add_del_map_args_t _a, * a = &_a;
@@ -709,7 +730,10 @@ nsh_add_del_map_command_fn (vlib_main_t * vm,
     else if (unformat (line_input, "encap-vxlan6-intf %d", &sw_if_index))
       next_node = NSH_NODE_NEXT_ENCAP_VXLAN6;
     else if (unformat (line_input, "encap-eth-intf %d", &sw_if_index))
-      next_node = NSH_NODE_NEXT_ENCAP_ETHERNET;
+      {
+        next_node = NSH_NODE_NEXT_ENCAP_ETHERNET;
+        adj_index = nsh_get_adj_by_sw_if_index(sw_if_index);
+      }
     else if (unformat (line_input, "encap-none %d %d", &sw_if_index, &rx_sw_if_index))
       next_node = NSH_NODE_NEXT_DECAP_ETH_INPUT;
     else
@@ -741,6 +765,7 @@ nsh_add_del_map_command_fn (vlib_main_t * vm,
   a->map.sw_if_index = sw_if_index;
   a->map.rx_sw_if_index = rx_sw_if_index;
   a->map.next_node = next_node;
+  a->map.adj_index = adj_index;
 
   rv = nsh_add_del_map(a, &map_index);
 
@@ -1779,6 +1804,7 @@ nsh_input_map (vlib_main_t * vm,
 	  /* set up things for next node to transmit ie which node to handle it and where */
 	  next0 = map0->next_node;
 	  vnet_buffer(b0)->sw_if_index[VLIB_TX] = map0->sw_if_index;
+	  vnet_buffer(b0)->ip.adj_index[VLIB_TX] = map0->adj_index;
 
 	  if(PREDICT_FALSE(map0->nsh_action == NSH_ACTION_POP))
 	    {
@@ -1882,6 +1908,7 @@ nsh_input_map (vlib_main_t * vm,
 	  /* set up things for next node to transmit ie which node to handle it and where */
 	  next1 = map1->next_node;
 	  vnet_buffer(b1)->sw_if_index[VLIB_TX] = map1->sw_if_index;
+	  vnet_buffer(b1)->ip.adj_index[VLIB_TX] = map1->adj_index;
 
 	  if(PREDICT_FALSE(map1->nsh_action == NSH_ACTION_POP))
 	    {
@@ -2068,6 +2095,8 @@ nsh_input_map (vlib_main_t * vm,
 	  /* set up things for next node to transmit ie which node to handle it and where */
 	  next0 = map0->next_node;
 	  vnet_buffer(b0)->sw_if_index[VLIB_TX] = map0->sw_if_index;
+	  vnet_buffer(b0)->ip.adj_index[VLIB_TX] = map0->adj_index;
+	  vnet_buffer(b0)->sw_if_index[VLIB_RX] = map0->nsh_sw_if;
 
 	  if(PREDICT_FALSE(map0->nsh_action == NSH_ACTION_POP))
 	    {

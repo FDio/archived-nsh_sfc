@@ -76,6 +76,7 @@ typedef struct {
   u32 sw_if_index;
   u32 rx_sw_if_index;
   u32 next_node;
+  u32 adj_index;
 } nsh_map_t;
 
 typedef struct {
