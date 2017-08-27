@@ -255,4 +255,10 @@ nsh_md2_register_option (u16 class,
                                        nsh_tlv_header_t * opt),
                       u8 * trace (u8 * s,
                                   nsh_tlv_header_t * opt));
+
+typedef struct _nsh_main_dummy
+{
+  u8 output_feature_arc_index;
+} nsh_main_dummy_t;
+
 #endif /* included_nsh_h */
