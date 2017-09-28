@@ -22,7 +22,7 @@
  *  0                   1                   2                   3
  *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
  *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *  |Ver|O|C|R|R|R|R|R|R|   Length  |    MD Type    | Next Protocol |
+ *  |Ver|O|C|    TTL    |   Length  |    MD Type    | Next Protocol |
  *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  * 
  * 
@@ -69,8 +69,8 @@
  */
 
 typedef CLIB_PACKED(struct {
-  u8 ver_o_c;
-  u8 length;
+  u8 ver_o_c; //TTL: high 4 bit
+  u8 length;  //TTL: low 2 bit
   u8 md_type;
   u8 next_protocol;
   u32 nsp_nsi; // nsp 24 bits, nsi 8 bits
@@ -103,6 +103,10 @@ typedef CLIB_PACKED(struct {
 #define NSH_VERSION (0<<6)
 #define NSH_O_BIT (1<<5)
 #define NSH_C_BIT (1<<4)
+
+#define NSH_TTL_H4_MASK 0xF
+#define NSH_TTL_L2_MASK 0xC0
+#define NSH_LEN_MASK 0x3F
 
 /* Network byte order shift / mask */
 #define NSH_NSI_MASK 0xFF

@@ -186,6 +186,7 @@ _(NO_ENTRY, "no entry for nsh key") \
 _(NO_PROXY, "no proxy for transport key") \
 _(INVALID_NEXT_PROTOCOL, "invalid next protocol") \
 _(INVALID_OPTIONS, "invalid md2 options") \
+_(INVALID_TTL, "ttl equals zero") \
 
 typedef enum {
 #define _(sym,str) NSH_NODE_ERROR_##sym,

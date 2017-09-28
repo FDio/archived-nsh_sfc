@@ -7,6 +7,7 @@
     @param nsp_nsi - Key for nsh_header_t entry to map to. : 24bit NSP 8bit NSI 
     @param md_type - metadata type [1|2] - only MDType1 supported today
     @param ver_o_c - version, O-bit and C-bit (see nsh_packet.h)
+    @param ttl - indicates the maximum SFF hops for an SFP
     @param length - header length in n x 32bits, should be 6 for MDtype1
     @param next_protocol - next protocol encapsulated behind NSH header: 1=Ethernet, 2=IP4, 3=IP6
     @param c1 - 32bit Metadata type1 field (context1)
@@ -22,6 +23,7 @@ define nsh_add_del_entry {
     u32 nsp_nsi;
     u8 md_type;
     u8 ver_o_c;
+    u8 ttl;
     u8 length;
     u8 next_protocol;
     u32 c1;
@@ -55,6 +57,7 @@ define nsh_entry_details {
     u32 nsp_nsi;
     u8 md_type;
     u8 ver_o_c;
+    u8 ttl;
     u8 length;
     u8 next_protocol;
     u32 c1;
