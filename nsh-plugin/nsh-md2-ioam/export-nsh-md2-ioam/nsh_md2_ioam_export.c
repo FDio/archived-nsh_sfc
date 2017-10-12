@@ -24,7 +24,6 @@
 
 #include <vlibapi/api.h>
 #include <vlibmemory/api.h>
-#include <vlibsocket/api.h>
 
 #include <nsh/nsh.h>
 #include <nsh-md2-ioam/nsh_md2_ioam.h>

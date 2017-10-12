@@ -1,4 +1,4 @@
-AC_INIT(nsh-japi, 17.10)
+AC_INIT(nsh-japi, 18.01)
 LT_INIT
 AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE

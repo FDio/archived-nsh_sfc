@@ -25,7 +25,6 @@
 
 #include <vlibapi/api.h>
 #include <vlibmemory/api.h>
-#include <vlibsocket/api.h>
 
 extern nsh_option_map_t * nsh_md2_lookup_option (u16 class, u8 type);
 

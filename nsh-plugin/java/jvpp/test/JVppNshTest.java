@@ -33,7 +33,7 @@ import io.fd.vpp.jvpp.nsh.*;
  */
 public class JVppNshTest {
 
-    static class TestCallback implements NshAddDelEntryCallback, NshEntryCallback {
+    static class TestCallback implements NshAddDelEntryReplyCallback, NshEntryDetailsCallback {
 
         @Override
         public void onNshAddDelEntryReply(final NshAddDelEntryReply msg) {
