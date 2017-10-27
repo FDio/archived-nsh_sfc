@@ -1,9 +1,18 @@
 # Release Notes    {#release_notes}
 
+* @subpage release_notes_1710
 * @subpage release_notes_1707
 * @subpage release_notes_1704
 * @subpage release_notes_1701
 * @subpage release_notes_1609
+
+@page release_notes_1710 Release notes for NSH_SFC 17.10
+
+## Features
+- Add NSH TTL support
+
+## Issues fixed
+
 
 @page release_notes_1707 Release notes for NSH_SFC 17.07
 
