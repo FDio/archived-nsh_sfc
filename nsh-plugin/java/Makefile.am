@@ -63,6 +63,6 @@ $(jarfile_jnsh_sfc): libjvpp_nsh.la
 nsh.api.json: $(api_file)
 	@echo "  jNsh_sfc API"; \
 	$(CC) $(CPPFLAGS) -E -P -C -x c $^ \
-	| vppapigen --input $(api_file) --json $@
+	| vppapigen --input $^ JSON --output $@
 
 all-local: $(jarfile_jnsh_sfc)
