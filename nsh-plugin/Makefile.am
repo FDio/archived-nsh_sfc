@@ -42,7 +42,7 @@ SUFFIXES = .api.h .api
 vpp-api/%.api.h: nsh/%.api
 	mkdir -p `dirname $@` ; \
 	$(CC) $(CPPFLAGS) -E -P -C -x c $^ \
-	| vppapigen --input - --output $@ --show-name $@
+	| vppapigen --includedir $(top_srcdir) --input $< --output $@
 
 nobase_include_HEADERS =			\
   vpp-api/nsh_all_api_h.h			\
