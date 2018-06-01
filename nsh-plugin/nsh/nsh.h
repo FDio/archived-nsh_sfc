@@ -34,6 +34,9 @@ typedef struct {
  * rewrite and rewrite_size used to support varied nsh header
  */
 typedef struct {
+  /* Required for pool_get_aligned  */
+  CLIB_CACHE_LINE_ALIGN_MARK (cacheline0);
+
   nsh_base_header_t nsh_base;
   union {
      nsh_md1_data_t md1_data;
@@ -54,6 +57,9 @@ typedef struct {
 } nsh_add_del_entry_args_t;
 
 typedef struct {
+  /* Required for pool_get_aligned  */
+  CLIB_CACHE_LINE_ALIGN_MARK (cacheline0);
+
   /** Key for nsh_header_t entry: 24bit NSP 8bit NSI */
   u32 nsp_nsi;
   /** Key for nsh_header_t entry to map to. : 24bit NSP 8bit NSI
